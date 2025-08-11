@@ -68,7 +68,7 @@ prompt-stacker
 ├── win_focus.py          # Window management and focus
 ├── settings_store.py     # Settings persistence
 ├── dpi.py               # DPI awareness for high-res displays
-├── code_report_card.py  # Sample prompt data
+├── prompt_list.py  # Sample prompt data
 ├── requirements.txt     # Dependencies
 └── coords.json         # Saved coordinates (auto-generated)
 ```
@@ -103,7 +103,7 @@ prompt-stacker
 ## 🔧 Customization
 
 ### Adding New Prompts
-Edit `code_report_card.py` or create your own prompt file:
+Edit `prompt_list.py` or create your own prompt file:
 ```python
 my_prompts = [
     "Your first prompt here",

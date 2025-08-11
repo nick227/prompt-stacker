@@ -10,8 +10,8 @@ This script delegates to the modular pipeline defined in:
 """
 
 from automator import run_automation
-from prompt_lists.president_of_usa_posts import president_of_usa_posts
+from prompt_lists.prompt_list import prompt_list
 
 
 if __name__ == "__main__":
-    run_automation(president_of_usa_posts)
+    run_automation(prompt_list)

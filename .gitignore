@@ -188,3 +188,4 @@ Thumbs.db
 
 # Prompt lists
 /prompt_lists/**
+!/prompt_lists/prompt_list.py
