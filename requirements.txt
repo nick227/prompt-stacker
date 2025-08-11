@@ -1,0 +1,21 @@
+# Automation System Requirements
+# Production-ready dependency specifications
+
+# Core automation libraries
+pyautogui>=0.9.54,<1.0.0
+pyperclip>=1.8.2,<2.0.0
+pywinauto>=0.6.8,<1.0.0
+
+# UI framework
+customtkinter>=5.2.0,<6.0.0
+
+# Input handling
+pynput>=1.7.6,<2.0.0
+
+# Optional: Enhanced clipboard support (if pyperclip issues)
+# pywin32>=306,<307  # Windows-specific clipboard enhancement
+
+# Development dependencies (optional)
+# pytest>=7.4.0,<8.0.0  # For testing
+# black>=23.0.0,<24.0.0  # Code formatting
+# flake8>=6.0.0,<7.0.0   # Linting
