@@ -12,6 +12,9 @@ customtkinter>=5.2.0,<6.0.0
 # Input handling
 pynput>=1.7.6,<2.0.0
 
+# Performance monitoring
+psutil>=5.9.0,<6.0.0
+
 # Optional: Enhanced clipboard support (if pyperclip issues)
 # pywin32>=306,<307  # Windows-specific clipboard enhancement
 
@@ -19,3 +22,9 @@ pynput>=1.7.6,<2.0.0
 # pytest>=7.4.0,<8.0.0  # For testing
 # black>=23.0.0,<24.0.0  # Code formatting
 # flake8>=6.0.0,<7.0.0   # Linting
+ruff>=0.1.0,<1.0.0      # Fast Python linter and formatter
+
+# Build dependencies (for creating executables)
+# pyinstaller>=5.13.0,<6.0.0  # For building executables
+# setuptools>=61.0,<62.0      # For packaging
+# wheel>=0.40.0,<1.0.0        # For wheel building

@@ -6,10 +6,11 @@ from pywinauto.application import Application
 
 DEFAULT_TITLE = os.environ.get("CURSOR_TARGET_TITLE", "Cursor")
 
+
 class CursorWindow:
     def __init__(self, title_pattern: Optional[str] = None):
         self.title_pattern = title_pattern or f".*{DEFAULT_TITLE}.*"
-        self.app = Application(backend='uia')
+        self.app = Application(backend="uia")
         self.window = None
 
     def connect(self) -> bool:

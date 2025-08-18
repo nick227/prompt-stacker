@@ -1,5 +1,6 @@
-import sys
 import ctypes
+import sys
+
 
 def enable_windows_dpi_awareness() -> None:
     if not sys.platform.startswith("win"):
