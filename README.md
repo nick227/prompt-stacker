@@ -12,9 +12,38 @@ A powerful, production-ready automation system for Cursor with a beautiful Monok
 - **💾 Persistent Settings**: Saves coordinates and preferences automatically
 - **🎮 User Control**: Pause, skip, retry, and cancel functionality
 
+## 🚀 Quick Start
+
+### Run the Application
+
+The main way to run the application is:
+
+```bash
+python cursor.py
+```
+
+### Alternative: Build Executable
+
+If you prefer a standalone executable:
+
+```bash
+# Navigate to build tools
+cd build_tools
+
+# Build the executable
+python build.py
+
+# The executable will be created in the dist/ directory
+```
+
 ## 🛠️ Installation
 
-### Option 1: From GitHub Repository
+### Prerequisites
+
+- **Python**: 3.8 or higher
+- **OS**: Windows (primary), Linux/macOS (limited support)
+
+### Setup
 
 1. **Clone the repository**:
    ```bash
@@ -27,31 +56,12 @@ A powerful, production-ready automation system for Cursor with a beautiful Monok
    pip install -r requirements.txt
    ```
 
-3. **Run the automation**:
+3. **Run the application**:
    ```bash
-   python automator.py
+   python cursor.py
    ```
 
-### Option 2: From Local Files
-
-1. **Download or extract** the project files
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. **Run the automation**:
-   ```bash
-   python automator.py
-   ```
-
-### Option 3: Install as Package
-
-```bash
-pip install prompt-stacker
-prompt-stacker
-```
-
-## 🎯 Quick Start
+## 🎯 Usage
 
 1. **Launch the application** - A beautiful Monokai-themed dialog will appear
 2. **Set coordinates** - Click "Capture" buttons to set Input, Submit, and Accept positions
@@ -63,14 +73,19 @@ prompt-stacker
 ## 📁 Project Structure
 
 ```
-├── automator.py          # Main automation engine
-├── ui_session.py         # Beautiful Monokai-themed UI
-├── win_focus.py          # Window management and focus
-├── settings_store.py     # Settings persistence
-├── dpi.py               # DPI awareness for high-res displays
-├── prompt_list.py  # Sample prompt data
-├── requirements.txt     # Dependencies
-└── coords.json         # Saved coordinates (auto-generated)
+├── cursor.py              # Main application entry point
+├── src/                   # Source code
+│   ├── automator.py       # Main automation engine
+│   ├── ui_session_refactored.py  # Beautiful Monokai-themed UI
+│   ├── win_focus.py       # Window management and focus
+│   ├── settings_store.py  # Settings persistence
+│   └── dpi.py            # DPI awareness for high-res displays
+├── prompt_lists/          # Prompt data files
+├── build_tools/          # Build and distribution tools
+├── docs/                 # Documentation
+├── tests/                # Test files
+├── requirements.txt      # Dependencies
+└── coords.json          # Saved coordinates (auto-generated)
 ```
 
 ## 🎨 UI Features
@@ -103,7 +118,7 @@ prompt-stacker
 ## 🔧 Customization
 
 ### Adding New Prompts
-Edit `prompt_list.py` or create your own prompt file:
+Edit files in `prompt_lists/` or create your own prompt file:
 ```python
 my_prompts = [
     "Your first prompt here",
@@ -113,7 +128,7 @@ my_prompts = [
 ```
 
 ### Changing Target Application
-Modify the window title pattern in `win_focus.py`:
+Modify the window title pattern in `src/win_focus.py`:
 ```python
 DEFAULT_TITLE = "Your App Name"
 ```
@@ -132,7 +147,7 @@ DEFAULT_TITLE = "Your App Name"
 
 3. **Window not found**
    - Verify the target application is running
-   - Check the window title pattern in `win_focus.py`
+   - Check the window title pattern in `src/win_focus.py`
 
 ### Logs
 Check `automation.log` for detailed error information and debugging.
@@ -150,51 +165,14 @@ Check `automation.log` for detailed error information and debugging.
 - **OS**: Windows (primary), Linux/macOS (limited support)
 - **Dependencies**: See `requirements.txt`
 
-## 🚀 Setting Up GitHub Repository
+## 📚 Documentation
 
-### Quick Setup
-
-1. **Run the setup script**:
-   ```bash
-   # On Linux/Mac:
-   chmod +x scripts/setup_repo.sh
-   ./scripts/setup_repo.sh
-   
-   # On Windows (PowerShell):
-   .\scripts\setup_repo.ps1
-   ```
-
-2. **Create GitHub repository**:
-   - Go to [GitHub](https://github.com) and create a new repository named `prompt-stacker`
-   - Don't initialize with README, .gitignore, or license (we already have these)
-
-3. **Connect and push**:
-   ```bash
-   git remote add origin https://github.com/YOUR_USERNAME/prompt-stacker.git
-   git push -u origin main
-   ```
-
-### Manual Setup
-
-If you prefer to set up manually:
-
-```bash
-# Initialize git repository
-git init
-
-# Add all files
-git add .
-
-# Create initial commit
-git commit -m "feat: Initial commit - Prompt Stacker automation system"
-
-# Create main branch
-git branch -M main
-
-# Add remote and push
-git remote add origin https://github.com/YOUR_USERNAME/prompt-stacker.git
-git push -u origin main
-```
+For detailed documentation, see the `docs/` directory:
+- [Architecture Guide](docs/ARCHITECTURE.md)
+- [Build Guide](docs/BUILD_GUIDE.md)
+- [Testing Guide](docs/TESTING.md)
+- [Distribution Guide](docs/DISTRIBUTION_GUIDE.md)
+- [Contributing Guide](docs/CONTRIBUTING.md)
 
 ## 🤝 Contributing
 
@@ -204,7 +182,7 @@ git push -u origin main
 4. Test thoroughly
 5. Submit a pull request
 
-For detailed contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For detailed contribution guidelines, see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ## 📄 License
 
