@@ -687,6 +687,10 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
             # Get ready pause with dialog to front
             logger.info(f"Starting get ready countdown for {current_timers[3]} seconds")
             ui.bring_to_front()
+            
+            # CRITICAL FIX: Cleanup any orphaned threads before starting new countdown
+            ui.countdown_service.cleanup_orphaned_threads()
+            
             result = ui.countdown(
                 current_timers[3],  # get_ready_delay
                 f"Starting {index + 1} of {len(initial_prompts)}",
@@ -771,6 +775,10 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
                 initial_prompts[index + 1] if index + 1 < len(initial_prompts) else None
             )
             logger.info(f"Starting main wait countdown for {current_timers[1]} seconds")
+            
+            # CRITICAL FIX: Cleanup any orphaned threads before starting new countdown
+            ui.countdown_service.cleanup_orphaned_threads()
+            
             result = ui.countdown(
                 current_timers[1], text, next_text, last_text
             )  # main_wait
@@ -842,22 +850,27 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
             cooldown_duration = int(current_timers[2])
             logger.info(f"Starting cooldown countdown for {cooldown_duration} seconds")
             
-            # CRITICAL FIX: Add completion callback to trigger next cycle
+            # CRITICAL FIX: Cleanup any orphaned threads before starting new countdown
+            ui.countdown_service.cleanup_orphaned_threads()
+            
+            # CRITICAL FIX: Use a threading event to wait for countdown completion
+            countdown_completed = threading.Event()
+            countdown_result = None
+            
             def on_cooldown_complete(result: Dict[str, Any]) -> None:
                 """Callback when cooldown countdown completes - triggers next automation cycle."""
+                nonlocal countdown_result
                 try:
                     logger.info(f"Cooldown countdown completion callback triggered with result: {result}")
-                    
-                    # Only proceed if not cancelled
-                    if not result.get("cancelled"):
-                        logger.info("Cooldown completed successfully - triggering next automation cycle")
-                        # The automation will continue in the main loop
-                    else:
-                        logger.info("Cooldown was cancelled - stopping automation")
+                    countdown_result = result
+                    countdown_completed.set()  # Signal that countdown is complete
                 except Exception as e:
                     logger.error(f"Error in cooldown completion callback: {e}")
+                    countdown_result = {"cancelled": True}
+                    countdown_completed.set()
             
-            cooldown_result = ui.countdown(
+            # Start the countdown with completion callback
+            ui.countdown(
                 cooldown_duration, 
                 "Waiting...", 
                 next_text, 
@@ -865,13 +878,24 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
                 on_complete=on_cooldown_complete
             )
             
-            logger.info(f"Cooldown countdown completed with result: {cooldown_result}")
+            # CRITICAL FIX: Wait for countdown to actually complete
+            logger.info("Waiting for cooldown countdown to complete...")
+            if countdown_completed.wait(timeout=cooldown_duration + 10):
+                logger.info(f"Cooldown countdown completed with result: {countdown_result}")
+            else:
+                logger.warning("Cooldown countdown timeout - forcing completion")
+                countdown_result = {"cancelled": True}
             
-            if cooldown_result.get("cancelled"):
+            # CRITICAL FIX: Safety check - if countdown_result is None, create a default
+            if countdown_result is None:
+                logger.warning("Countdown result is None - creating default result")
+                countdown_result = {"cancelled": False, "paused": False}
+            
+            if countdown_result and countdown_result.get("cancelled"):
                 logger.info("Automation cancelled during cooldown countdown")
                 return False
                 
-            if cooldown_result.get("paused"):
+            if countdown_result and countdown_result.get("paused"):
                 logger.info("Cooldown countdown was paused - waiting for completion")
                 # Wait for countdown to complete (which will happen when resumed)
                 wait_start = time.time()

@@ -182,6 +182,20 @@ class CountdownService:
             self.countdown_thread.join(timeout=1.0)
             if self.countdown_thread.is_alive():
                 logger.error("Failed to stop existing countdown thread")
+                # Force kill the thread by setting a flag
+                with self._state_lock:
+                    self._cancelled = True
+                    self._countdown_active = False
+                    self._paused = False
+
+        # CRITICAL FIX: Double-check that no threads are running
+        if self.countdown_thread and self.countdown_thread.is_alive():
+            logger.error("Countdown thread still alive after stop attempt - forcing cleanup")
+            # Increment generation to invalidate any running threads
+            with self._state_lock:
+                self._generation_id += 1
+            # Wait a bit more
+            time.sleep(0.2)
 
         # Reset state for new countdown
         self._reset_state()
@@ -215,6 +229,7 @@ class CountdownService:
         self.countdown_thread = threading.Thread(
             target=_thread_target,
             daemon=True,
+            name=f"CountdownThread#{local_generation}",
         )
         self.countdown_thread.start()
 
@@ -494,6 +509,13 @@ class CountdownService:
             self.countdown_active = False
             logger.info(f"Countdown loop completed after {time.time() - start_time:.2f} seconds")
 
+            # CRITICAL FIX: Don't complete countdown if it was paused
+            # This prevents automation from continuing when paused
+            if self.paused:
+                logger.info("Countdown completed while paused - not triggering completion")
+                # Don't call completion callback or set completion event
+                return
+
             # SIMPLIFIED FIX: Single, immediate UI reset after countdown completion
             # This eliminates the race condition by doing one clean reset
             try:
@@ -515,18 +537,22 @@ class CountdownService:
             # Call completion callback if provided
             if self.on_countdown_complete:
                 try:
+                    logger.info("Calling countdown completion callback...")
                     final_state = self._get_final_state()
                     self.on_countdown_complete(final_state)
                     # Store result for synchronization
                     self._completion_result = final_state
+                    logger.info("Countdown completion callback executed successfully")
                 except Exception as e:
                     logger.error(f"Error in countdown completion callback: {e}")
                     self._completion_result = self._get_final_state()
             else:
+                logger.info("No completion callback provided - storing result only")
                 # Store result for synchronization
                 self._completion_result = self._get_final_state()
 
             # CRITICAL FIX: Signal completion event for proper synchronization
+            logger.info("Signaling countdown completion event")
             self._completion_event.set()
 
         except Exception as e:
@@ -597,15 +623,43 @@ class CountdownService:
             and self.countdown_thread.is_alive()
         )
 
+    def cleanup_orphaned_threads(self) -> bool:
+        """
+        Detect and cleanup any orphaned countdown threads.
+        
+        Returns:
+            True if orphaned threads were found and cleaned up, False otherwise
+        """
+        try:
+            # Check if there's a thread running but countdown is not active
+            if self.countdown_thread and self.countdown_thread.is_alive():
+                if not self.countdown_active:
+                    logger.warning("Detected orphaned countdown thread - forcing cleanup")
+                    self.force_reset()
+                    return True
+                else:
+                    logger.info("Countdown thread is running normally")
+            else:
+                logger.info("No countdown threads running")
+            
+            return False
+        except Exception as e:
+            logger.warning(f"Error checking for orphaned threads: {e}")
+            return False
+
     def get_thread_status(self) -> Dict[str, Any]:
         """Get detailed thread status for debugging."""
+        thread = self.countdown_thread
         return {
             "countdown_active": self.countdown_active,
-            "thread_exists": self.countdown_thread is not None,
-            "thread_alive": self.countdown_thread.is_alive() if self.countdown_thread else False,
+            "thread_exists": thread is not None,
+            "thread_alive": thread.is_alive() if thread else False,
+            "thread_name": getattr(thread, "name", None) if thread else None,
+            "thread_ident": getattr(thread, "ident", None) if thread else None,
             "paused": self.paused,
             "cancelled": self.cancelled,
             "stop_event_set": self._stop_event.is_set(),
+            "generation_id": self._generation_id,
         }
 
     def is_paused(self) -> bool:

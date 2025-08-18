@@ -20,7 +20,7 @@ import logging
 import sys
 import tkinter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Callable
 
 import customtkinter as ctk
 
@@ -1171,6 +1171,7 @@ class RefactoredSessionUI:
         text: Optional[str],
         next_text: Optional[str],
         last_text: Optional[str],
+        on_complete: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
         """Start countdown with user controls."""
         return self.countdown_service.start_countdown(
@@ -1178,6 +1179,7 @@ class RefactoredSessionUI:
             text,
             next_text,
             last_text,
+            on_complete,
         )
 
     def _reset_automation_state(self) -> None:
