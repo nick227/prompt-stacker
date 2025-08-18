@@ -35,8 +35,8 @@ def main():
         start_performance_monitoring()
         log_info("Application started with performance monitoring")
         
-        # Launch the UI session manager
-        from src.ui_session_refactored import RefactoredSessionUI
+        # Launch the refactored UI session manager
+        from src.ui import RefactoredSessionUI
         
         ui = RefactoredSessionUI(default_start=5, default_main=500, default_cooldown=0.2)
         ui.wait_for_start()

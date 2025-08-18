@@ -16,6 +16,10 @@ from typing import Any, Callable, Dict, Optional
 
 import customtkinter as ctk
 
+# Global thread registry to track all countdown threads
+_countdown_threads = set()
+_thread_registry_lock = threading.Lock()
+
 # Set up logger
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,59 @@ except ImportError:
         COLOR_ACCENT = "#A6E22E"
         BUTTON_BG = "#2F2F2F"
         BUTTON_HOVER = "#1f1f1f"
+
+def _kill_all_countdown_threads():
+    """Kill all countdown threads globally."""
+    global _countdown_threads
+    with _thread_registry_lock:
+        threads_to_kill = _countdown_threads.copy()
+        thread_count = len(threads_to_kill)
+        logger.warning(f"KILLING ALL THREADS: Found {thread_count} countdown threads to kill")
+        _countdown_threads.clear()
+    
+    if thread_count == 0:
+        logger.info("No countdown threads found to kill")
+        return
+    
+    for i, thread in enumerate(threads_to_kill, 1):
+        if thread.is_alive():
+            thread_name = getattr(thread, 'name', 'Unknown')
+            thread_ident = getattr(thread, 'ident', 'Unknown')
+            logger.warning(f"Killing thread {i}/{thread_count}: {thread_name} (ID: {thread_ident})")
+            # Set a flag to make the thread exit
+            if hasattr(thread, '_force_exit'):
+                thread._force_exit = True
+                logger.info(f"   Set force_exit flag on thread {thread_name}")
+            # Wait a moment for graceful exit
+            thread.join(timeout=0.1)
+            if thread.is_alive():
+                logger.error(f"FAILED to kill thread: {thread_name} (ID: {thread_ident})")
+            else:
+                logger.info(f"Successfully killed thread: {thread_name}")
+        else:
+            thread_name = getattr(thread, 'name', 'Unknown')
+            logger.info(f"Thread {thread_name} was already dead")
+    
+    logger.info(f"Thread cleanup completed - killed {thread_count} threads")
+
+def _log_thread_registry_status():
+    """Log the current status of all threads in the global registry."""
+    global _countdown_threads
+    with _thread_registry_lock:
+        thread_count = len(_countdown_threads)
+        logger.info(f"THREAD REGISTRY STATUS: {thread_count} threads registered")
+        
+        if thread_count > 0:
+            for i, thread in enumerate(_countdown_threads, 1):
+                thread_name = getattr(thread, 'name', 'Unknown')
+                thread_ident = getattr(thread, 'ident', 'Unknown')
+                is_alive = thread.is_alive()
+                force_exit = getattr(thread, '_force_exit', False)
+                status = "ALIVE" if is_alive else "DEAD"
+                force_status = "FORCE_EXIT" if force_exit else "NORMAL"
+                logger.info(f"   {i}. {thread_name} (ID: {thread_ident}) - {status} - {force_status}")
+        else:
+            logger.info("   No threads registered")
 
 # =============================================================================
 # COUNTDOWN SERVICE
@@ -165,37 +222,16 @@ class CountdownService:
         Returns:
             Dictionary containing final state
         """
-        logger.info(f"Starting countdown for {seconds} seconds")
+        logger.info(f"STARTING COUNTDOWN: {seconds} seconds (Generation: {self._generation_id + 1})")
 
-        # CRITICAL FIX: Stop any existing countdown before starting new one
-        # This prevents multiple threads from running simultaneously
-        if self.countdown_active:
-            logger.warning("Stopping existing countdown before starting new one")
-            self.stop()
-            # Wait a moment for the thread to actually stop
-            time.sleep(0.1)
-
-        # CRITICAL FIX: Ensure no threads are running
-        if self.countdown_thread and self.countdown_thread.is_alive():
-            logger.warning("Force stopping existing countdown thread")
-            self._stop_event.set()
-            self.countdown_thread.join(timeout=1.0)
-            if self.countdown_thread.is_alive():
-                logger.error("Failed to stop existing countdown thread")
-                # Force kill the thread by setting a flag
-                with self._state_lock:
-                    self._cancelled = True
-                    self._countdown_active = False
-                    self._paused = False
-
-        # CRITICAL FIX: Double-check that no threads are running
-        if self.countdown_thread and self.countdown_thread.is_alive():
-            logger.error("Countdown thread still alive after stop attempt - forcing cleanup")
-            # Increment generation to invalidate any running threads
-            with self._state_lock:
-                self._generation_id += 1
-            # Wait a bit more
-            time.sleep(0.2)
+        # CRITICAL FIX: Kill ALL countdown threads globally before starting new one
+        logger.info("Cleaning up existing threads before starting new countdown...")
+        _log_thread_registry_status()  # Log before cleanup
+        _kill_all_countdown_threads()
+        _log_thread_registry_status()  # Log after cleanup
+        
+        # Wait a moment to ensure all threads are dead
+        time.sleep(0.1)
 
         # Reset state for new countdown
         self._reset_state()
@@ -207,73 +243,110 @@ class CountdownService:
         self._completion_event.clear()
         self._completion_result = None
 
-        # Initialize countdown
-        total = max(0.0, float(seconds))
-        remaining = float(total)
+        # Increment generation ID to invalidate any old threads
+        self._generation_id += 1
+        local_generation = self._generation_id
+        logger.info(f"New generation ID: {local_generation}")
 
-        # Update UI immediately
-        self._update_display(remaining, total, text, next_text)
-
-        # Start countdown in separate thread to prevent UI blocking
-        # CRITICAL: Set active state AFTER pause state is restored
-        self.countdown_active = True
-
-        # Increment generation and capture local copy for this thread
+        # Set countdown as active
         with self._state_lock:
-            self._generation_id += 1
-            local_generation = self._generation_id
+            self._countdown_active = True
+            self._paused = False
+            self._cancelled = False
 
+        # Start countdown thread
         def _thread_target():
-            self._countdown_loop(remaining, total, text, next_text, last_text, local_generation)
+            thread_name = f"CountdownThread#{local_generation}"
+            logger.info(f"THREAD STARTED: {thread_name} (ID: {threading.current_thread().ident})")
+            try:
+                self._countdown_loop(seconds, text, next_text, last_text, local_generation)
+            except Exception as e:
+                logger.error(f"THREAD ERROR in {thread_name}: {e}")
+            finally:
+                logger.info(f"THREAD ENDED: {thread_name}")
 
         self.countdown_thread = threading.Thread(
             target=_thread_target,
             daemon=True,
             name=f"CountdownThread#{local_generation}",
         )
+        
+        # CRITICAL FIX: Register thread globally
+        with _thread_registry_lock:
+            _countdown_threads.add(self.countdown_thread)
+            current_thread_count = len(_countdown_threads)
+            logger.info(f"REGISTERED THREAD: {self.countdown_thread.name} (Total threads: {current_thread_count})")
+        
+        # Add force exit flag
+        self.countdown_thread._force_exit = False
+        
+        logger.info(f"STARTING THREAD: {self.countdown_thread.name}")
         self.countdown_thread.start()
 
-        # Wait for countdown to complete but with timeout to prevent blocking
-        try:
-            # CRITICAL FIX: Wait for completion event instead of thread join
-            # This ensures proper synchronization
-            if self._completion_event.wait(timeout=total + 10):
-                # Countdown completed normally
-                result = self._completion_result or self._get_final_state()
-            else:
-                # Timeout occurred
-                logger.warning("Countdown timeout - forcing completion")
-                result = self._get_final_state()
-        except Exception as e:
-            logger.error(f"Error waiting for countdown completion: {e}")
+        # CRITICAL FIX: Wait for completion event instead of thread join
+        # This ensures proper synchronization
+        logger.info(f"WAITING for countdown completion (timeout: {seconds + 10}s)...")
+        
+        # Wait for completion with timeout, but handle paused state
+        wait_start_time = time.time()
+        timeout_reached = False
+        while not self._completion_event.is_set():
+            # Check if we should timeout
+            if time.time() - wait_start_time > seconds + 10:
+                # Only timeout if not paused - if paused, keep waiting
+                if not self.paused:
+                    logger.warning(f"COUNTDOWN TIMEOUT: {self.countdown_thread.name}")
+                    timeout_reached = True
+                    break
+                else:
+                    logger.info(f"Countdown paused - extending timeout for {self.countdown_thread.name}")
+                    # Reset timeout for paused countdown
+                    wait_start_time = time.time()
+            
+            # Wait a short time before checking again
+            if self._completion_event.wait(timeout=0.1):
+                break
+        
+        if timeout_reached:
             result = self._get_final_state()
+        else:
+            # Countdown completed normally
+            result = self._completion_result or self._get_final_state()
+            # Log completion
+            if self.countdown_thread and hasattr(self.countdown_thread, 'name'):
+                logger.info(f"COUNTDOWN COMPLETED: {self.countdown_thread.name}")
+            else:
+                logger.info("COUNTDOWN COMPLETED: Unknown thread")
 
-        # Return final state
+        # CRITICAL FIX: Unregister thread from global registry
+        with _thread_registry_lock:
+            _countdown_threads.discard(self.countdown_thread)
+            remaining_threads = len(_countdown_threads)
+            logger.info(f"UNREGISTERED THREAD: {self.countdown_thread.name} (Remaining threads: {remaining_threads})")
+
         return result
 
     def force_reset(self) -> None:
-        """Force reset the countdown service state - useful for debugging hanging issues."""
-        logger.info("Force resetting countdown service state")
+        """Force reset the countdown service state."""
+        logger.info("FORCE RESETTING countdown service")
+        
+        # CRITICAL FIX: Kill all countdown threads globally
+        _kill_all_countdown_threads()
+        
+        # Reset all state
         with self._state_lock:
             self._countdown_active = False
             self._paused = False
             self._cancelled = False
-            # Bump generation so any existing threads exit quickly
-            self._generation_id += 1
-        self._stop_event.set()
         
-        # CRITICAL FIX: Signal completion event to unblock any waiting threads
-        self._completion_event.set()
+        # Clear completion event
+        self._completion_event.clear()
+        self._completion_result = None
         
-        # Wait for any running thread to finish
-        if self.countdown_thread and self.countdown_thread.is_alive():
-            logger.info("Waiting for countdown thread to finish...")
-            self.countdown_thread.join(timeout=5.0)
-            if self.countdown_thread.is_alive():
-                logger.warning("Countdown thread did not finish within timeout")
-        
+        # Reset thread reference
         self.countdown_thread = None
-        logger.info("Countdown service state reset complete")
+        
+        logger.info("FORCE RESET COMPLETED")
 
     def force_complete(self) -> None:
         """
@@ -410,8 +483,7 @@ class CountdownService:
 
     def _countdown_loop(
         self,
-        remaining: float,
-        total: float,
+        seconds: float,
         text: Optional[str],
         next_text: Optional[str],
         last_text: Optional[str],
@@ -421,98 +493,103 @@ class CountdownService:
         Main countdown loop running in separate thread.
 
         Args:
-            remaining: Remaining time in seconds
+            seconds: Total countdown duration
             text: Current text to display
             next_text: Next text to display
             last_text: Previous text
-            local_generation: Generation id captured at start; if mismatched, exit
+            local_generation: Generation ID for this thread
         """
-        start_time = time.time()
-        max_duration = total + 60  # Allow 60 seconds extra for safety
+        thread_name = f"CountdownThread#{local_generation}"
+        logger.info(f"COUNTDOWN LOOP STARTED: {thread_name} for {seconds}s")
         
         try:
-            # Abort immediately if superseded by a newer countdown
-            with self._state_lock:
-                if local_generation != self._generation_id:
-                    logger.info("Countdown thread superseded by newer generation - exiting early")
-                    return
+            # Initialize countdown
+            total = max(0.0, float(seconds))
+            remaining = float(total)
+            start_time = time.time()
+            max_duration = total + 60  # Allow 60 seconds extra for safety
+
+            # Update UI immediately
+            self._update_display(remaining, total, text, next_text)
+
+            # Initialize tick_count before any pause checks
+            tick_count = 0
 
             # CRITICAL FIX: Check pause state immediately when thread starts
             # This prevents the countdown from running even briefly when resuming from pause
             if self.paused:
-                logger.info(
-                    "Countdown thread started in paused state - waiting for resume"
-                )
+                logger.info(f"PAUSED at {remaining:.1f}s remaining (tick {tick_count})")
                 pause_start = time.time()
                 while self.paused and self.countdown_active and not self.cancelled:
+                    # CRITICAL FIX: Check force exit flag
+                    if hasattr(self.countdown_thread, '_force_exit') and self.countdown_thread._force_exit:
+                        logger.info(f"FORCE EXIT requested during pause")
+                        return
+                    
                     time.sleep(WAIT_TICK)  # 0.05 seconds for responsive pause
                     if self._stop_event.is_set():
+                        logger.info(f"STOP event set during pause")
                         break
                     # Prevent infinite pause
                     if time.time() - pause_start > 300:  # 5 minutes max pause
-                        logger.warning("Pause timeout reached - forcing resume")
+                        logger.warning(f"PAUSE TIMEOUT - forcing resume")
                         break
-                    # Check for generation change during pause
-                    with self._state_lock:
-                        if local_generation != self._generation_id:
-                            logger.info("Countdown thread superseded during pause - exiting")
-                            return
-                logger.info("Countdown thread resumed from pause state")
 
+            # Main countdown loop
             while (
                 remaining > 0
                 and self.countdown_active
                 and not self.cancelled
                 and not self._stop_event.is_set()
             ):
+                tick_count += 1
+                
                 # If a newer generation started, exit silently
                 with self._state_lock:
                     if local_generation != self._generation_id:
-                        logger.info("Countdown loop detected newer generation - exiting")
+                        logger.info(f"SUPERSEDED by newer generation {self._generation_id} - exiting")
                         return
 
                 # Check for timeout
                 if time.time() - start_time > max_duration:
-                    logger.error(f"Countdown timeout reached after {max_duration} seconds")
+                    logger.error(f"TIMEOUT reached after {max_duration}s")
                     break
                     
+                # CRITICAL FIX: Check force exit flag
+                if hasattr(self.countdown_thread, '_force_exit') and self.countdown_thread._force_exit:
+                    logger.info(f"FORCE EXIT requested during countdown (tick {tick_count})")
+                    return
+                    
                 # CRITICAL FIX: Actually pause the countdown timer
-                # When paused, don't decrement remaining time and don't update UI
+                # When paused, don't decrement remaining time
                 if self.paused:
+                    if tick_count % 20 == 0:  # Log every 20 ticks when paused (every 1 second)
+                        logger.info(f"PAUSED at {remaining:.1f}s remaining (tick {tick_count})")
                     time.sleep(WAIT_TICK)  # 0.05 seconds for responsive pause
                     continue
 
-                # Schedule UI update on main thread with proper variable capture
+                # Update display
                 self._schedule_ui_update(remaining, total, text, next_text)
 
-                # Use smaller tick for more responsive pause checking
-                tick_duration = min(
-                    COUNTDOWN_TICK,
-                    0.05,
-                )  # Use 0.05 seconds max for responsiveness
-                time.sleep(tick_duration)
+                # Wait for next tick
+                time.sleep(1.0)
+
+                # Decrement remaining time
+                remaining -= 1.0
                 
-                # CRITICAL FIX: Only decrement remaining time when not paused
-                remaining -= tick_duration
-
-                # Check for stop event
-                if self._stop_event.is_set():
-                    break
-
-            # If superseded, do not finalize or fire callbacks
-            with self._state_lock:
-                if local_generation != self._generation_id:
-                    logger.info("Countdown finalize skipped due to newer generation")
-                    return
+                # Log progress every 10 seconds
+                if tick_count % 10 == 0:
+                    logger.info(f"Progress: {remaining:.1f}s remaining (tick {tick_count})")
 
             # Countdown completed
             self.countdown_active = False
-            logger.info(f"Countdown loop completed after {time.time() - start_time:.2f} seconds")
+            elapsed_time = time.time() - start_time
+            logger.info(f"COUNTDOWN LOOP COMPLETED after {elapsed_time:.2f}s (tick {tick_count})")
 
             # CRITICAL FIX: Don't complete countdown if it was paused
             # This prevents automation from continuing when paused
             if self.paused:
-                logger.info("Countdown completed while paused - not triggering completion")
+                logger.info(f"COMPLETED while PAUSED - not triggering completion")
                 # Don't call completion callback or set completion event
                 return
 
@@ -520,45 +597,36 @@ class CountdownService:
             # This eliminates the race condition by doing one clean reset
             try:
                 # Reset UI to final state immediately
-                self._update_display(0, total, text, next_text)
-                
-                # Ensure time display shows 0
-                if self.time_label:
-                    self.time_label.configure(text="0")
-                
-                # Ensure progress bar shows 0
-                if self.progress:
-                    self.progress.set(0.0)
-                    
-                logger.info("UI reset completed after countdown")
+                self._update_display(0.0, total, text, next_text)
             except Exception as e:
-                logger.warning(f"UI reset after countdown completion failed: {e}")
+                logger.warning(f"Error in final UI update: {e}")
 
             # Call completion callback if provided
             if self.on_countdown_complete:
                 try:
-                    logger.info("Calling countdown completion callback...")
+                    logger.info(f"Calling completion callback...")
                     final_state = self._get_final_state()
                     self.on_countdown_complete(final_state)
                     # Store result for synchronization
                     self._completion_result = final_state
-                    logger.info("Countdown completion callback executed successfully")
+                    logger.info(f"Completion callback executed successfully")
                 except Exception as e:
-                    logger.error(f"Error in countdown completion callback: {e}")
+                    logger.error(f"Error in completion callback: {e}")
                     self._completion_result = self._get_final_state()
             else:
-                logger.info("No completion callback provided - storing result only")
-                # Store result for synchronization
+                logger.info(f"No completion callback provided - storing result only")
+                # Store result for synchronization even without callback
                 self._completion_result = self._get_final_state()
 
-            # CRITICAL FIX: Signal completion event for proper synchronization
-            logger.info("Signaling countdown completion event")
+            # Signal completion event to unblock any waiting threads
             self._completion_event.set()
+            logger.info(f"Completion event signaled")
 
         except Exception as e:
             logger.error(f"Error in countdown loop: {e}")
-            self.countdown_active = False
-            self.cancelled = True
+            # Ensure completion event is set even on error
+            self._completion_event.set()
+            logger.info(f"Completion event signaled after error")
 
     def _get_final_state(self) -> Dict[str, Any]:
         """
@@ -575,11 +643,18 @@ class CountdownService:
 
     def toggle_pause(self) -> None:
         """Toggle pause/resume state with immediate UI feedback."""
+        logger.info(f"TOGGLE PAUSE called - countdown_active: {self.countdown_active}")
+        
         if not self.countdown_active:
+            logger.warning("Cannot toggle pause - countdown not active")
             return
 
         with self._state_lock:
+            old_paused = self._paused
             self._paused = not self._paused
+            new_paused = self._paused
+        
+        logger.info(f"PAUSE STATE CHANGED: {old_paused} -> {new_paused}")
 
         try:
             if self.pause_btn:
@@ -589,14 +664,16 @@ class CountdownService:
                         fg_color=COLOR_PRIMARY,
                         hover_color=COLOR_PRIMARY,
                     )
+                    logger.info("Pause button updated to RESUME")
                 else:
                     self.pause_btn.configure(
                         text=BTN_PAUSE,
                         fg_color=BUTTON_BG,
                         hover_color=BUTTON_HOVER,
                     )
+                    logger.info("Pause button updated to PAUSE")
         except (AttributeError, tkinter.TclError) as e:
-            print(f"Error updating pause button: {e}")
+            logger.error(f"Error updating pause button: {e}")
 
     def cancel(self) -> None:
         """Cancel the countdown with immediate response."""
@@ -693,25 +770,33 @@ class CountdownService:
 
     def stop(self) -> None:
         """Stop the countdown with immediate response."""
-        logger.info("Stopping countdown")
+        thread_name = getattr(self.countdown_thread, 'name', 'Unknown') if self.countdown_thread else 'Unknown'
+        logger.info(f"STOPPING COUNTDOWN: {thread_name}")
         
         # CRITICAL FIX: Set stop event first to signal threads to stop
         self._stop_event.set()
         
-        # Set cancelled state and bump generation
+        # Set cancelled state
         with self._state_lock:
             self._cancelled = True
             self._countdown_active = False
-            self._generation_id += 1
         
         # CRITICAL FIX: Wait for thread to actually stop
         if self.countdown_thread and self.countdown_thread.is_alive():
-            logger.info("Waiting for countdown thread to stop...")
+            logger.info(f"Waiting for {thread_name} to stop...")
             self.countdown_thread.join(timeout=2.0)  # Increased timeout
             if self.countdown_thread.is_alive():
-                logger.warning("Countdown thread did not stop within timeout")
+                logger.warning(f"did not stop within timeout")
             else:
-                logger.info("Countdown thread stopped successfully")
+                logger.info(f"stopped successfully")
+        else:
+            logger.info(f"was not running")
+        
+        # CRITICAL FIX: Unregister thread from global registry
+        with _thread_registry_lock:
+            _countdown_threads.discard(self.countdown_thread)
+            remaining_threads = len(_countdown_threads)
+            logger.info(f"UNREGISTERED THREAD: {thread_name} (Remaining threads: {remaining_threads})")
         
         # Signal completion event to unblock any waiting threads
         self._completion_event.set()
@@ -719,4 +804,4 @@ class CountdownService:
         # Reset thread reference
         self.countdown_thread = None
         
-        logger.info("Countdown stop completed")
+        logger.info(f"STOP COMPLETED: {thread_name}")

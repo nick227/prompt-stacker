@@ -20,7 +20,7 @@ from .performance import (
     start_performance_monitoring,
     stop_performance_monitoring,
 )
-from .ui_session_refactored import RefactoredSessionUI as SessionUI
+from .ui import RefactoredSessionUI as SessionUI
 from .win_focus import CursorWindow
 
 # Export all public components

@@ -12,13 +12,13 @@ from typing import List, Dict, Tuple
 
 # Import with fallback for relative import issues
 try:
-    from src.ui_session_refactored import RefactoredSessionUI
+    from src.ui import RefactoredSessionUI
 except ImportError:
     # Fallback for when running tests directly
     import sys
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-    from ui_session_refactored import RefactoredSessionUI
+    from ui.session_app import RefactoredSessionUI
 
 
 class TestRefactoredSessionUI:
@@ -27,13 +27,12 @@ class TestRefactoredSessionUI:
     @pytest.fixture
     def mock_ui_session(self):
         """Create a mock UI session for testing."""
-        with patch('src.ui_session_refactored.ctk') as mock_ctk, \
-             patch('src.ui_session_refactored.WindowService') as mock_window_service, \
-             patch('src.ui_session_refactored.CoordinateCaptureService') as mock_coord_service, \
-             patch('src.ui_session_refactored.EventService') as mock_event_service, \
-             patch('src.ui_session_refactored.FilePromptService') as mock_file_service, \
-             patch('src.ui_session_refactored.CountdownService') as mock_countdown_service, \
-             patch('src.ui_session_refactored.InlinePromptEditorService') as mock_prompt_service:
+        with patch('src.ui.session_app.ctk') as mock_ctk, \
+             patch('src.ui.session_app.WindowService') as mock_window_service, \
+             patch('src.ui.session_app.CoordinateCaptureService') as mock_coord_service, \
+             patch('src.ui.session_app.FilePromptService') as mock_file_service, \
+             patch('src.ui.session_app.CountdownService') as mock_countdown_service, \
+             patch('src.ui.session_app.InlinePromptEditorService') as mock_prompt_service:
             
             # Mock the UI components
             mock_window = Mock()
@@ -86,7 +85,6 @@ class TestRefactoredSessionUI:
             # Services
             ui.window_service = mock_window_service.return_value
             ui.coordinate_service = mock_coord_service.return_value
-            ui.event_service = mock_event_service.return_value
             ui.file_service = mock_file_service.return_value
             ui.countdown_service = mock_countdown_service.return_value
             ui.prompt_list_service = mock_prompt_service.return_value
@@ -97,7 +95,7 @@ class TestRefactoredSessionUI:
     def test_thread_safety_initialization(self, mock_ui_session):
         """Test that thread safety features are properly initialized."""
         assert hasattr(mock_ui_session, '_automation_lock')
-        assert isinstance(mock_ui_session._automation_lock, threading.Lock)
+        assert isinstance(mock_ui_session._automation_lock, type(threading.Lock()))
         assert hasattr(mock_ui_session, '_prompts_locked')
         assert isinstance(mock_ui_session._prompts_locked, bool)
         assert hasattr(mock_ui_session, '_prompts')
@@ -242,7 +240,6 @@ class TestRefactoredSessionUI:
         # Test that services are properly initialized
         assert mock_ui_session.window_service is not None
         assert mock_ui_session.coordinate_service is not None
-        assert mock_ui_session.event_service is not None
         assert mock_ui_session.file_service is not None
         assert mock_ui_session.countdown_service is not None
         assert mock_ui_session.prompt_list_service is not None

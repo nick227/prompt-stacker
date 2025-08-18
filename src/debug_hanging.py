@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from automator import run_single_prompt_automation
-from ui_session_refactored import RefactoredSessionUI
+from ui.session_app import RefactoredSessionUI
 import logging
 
 # Set up enhanced logging

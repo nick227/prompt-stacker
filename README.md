@@ -76,7 +76,7 @@ python build.py
 ├── cursor.py              # Main application entry point
 ├── src/                   # Source code
 │   ├── automator.py       # Main automation engine
-│   ├── ui_session_refactored.py  # Beautiful Monokai-themed UI
+│   ├── ui/                # Modular UI (session_app.py, session_controller.py, prompt_io.py, state_manager.py)
 │   ├── win_focus.py       # Window management and focus
 │   ├── settings_store.py  # Settings persistence
 │   └── dpi.py            # DPI awareness for high-res displays

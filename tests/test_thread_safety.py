@@ -13,14 +13,14 @@ from typing import List
 
 # Import with fallback for relative import issues
 try:
-    from src.ui_session_refactored import RefactoredSessionUI
+    from src.ui import RefactoredSessionUI
     from src.automator import run_automation_with_ui, run_single_prompt_automation
 except ImportError:
     # Fallback for when running tests directly
     import sys
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-    from ui_session_refactored import RefactoredSessionUI
+    from ui.session_app import RefactoredSessionUI
     from automator import run_automation_with_ui, run_single_prompt_automation
 
 
@@ -55,7 +55,7 @@ class TestThreadSafety:
     def test_automation_lock_presence(self, mock_ui_session):
         """Test that automation lock is properly initialized."""
         assert hasattr(mock_ui_session, '_automation_lock')
-        assert isinstance(mock_ui_session._automation_lock, threading.Lock)
+        assert isinstance(mock_ui_session._automation_lock, type(threading.Lock()))
         assert hasattr(mock_ui_session, '_prompts_locked')
         assert isinstance(mock_ui_session._prompts_locked, bool)
 

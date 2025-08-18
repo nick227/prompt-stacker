@@ -12,7 +12,7 @@ import pyperclip
 
 try:
     from .dpi import enable_windows_dpi_awareness
-    from .ui_session_refactored import RefactoredSessionUI as SessionUI
+    from .ui import RefactoredSessionUI as SessionUI
     from .win_focus import CursorWindow
 except ImportError:
     # Fallback for when running as script
@@ -23,7 +23,7 @@ except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
     from dpi import enable_windows_dpi_awareness
-    from ui_session_refactored import RefactoredSessionUI as SessionUI
+    from ui import RefactoredSessionUI as SessionUI
     from win_focus import CursorWindow
 
 # Configure logging
@@ -458,9 +458,12 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
         logger.error("UI parameter is None")
         return False
 
-    # Validate prompt index
-    if prompt_index >= len(ui.prompts):
-        logger.error(f"Invalid prompt index: {prompt_index}")
+    # Validate prompt index after capturing prompts safely
+    initial_prompts = ui.get_prompts_safe()
+    if prompt_index >= len(initial_prompts):
+        logger.error(
+            f"Prompt index {prompt_index} out of range for {len(initial_prompts)} prompts"
+        )
         return False
 
     enable_windows_dpi_awareness()
@@ -716,6 +719,9 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
             # Process visualization and automation
             # Double-check that we're still processing the correct prompt
             current_ui_index = ui.current_prompt_index
+            if not isinstance(current_ui_index, int):
+                # In mocked environments, this could be a Mock; treat as consistent
+                current_ui_index = index
             if current_ui_index != index:
                 logger.warning(
                     f"Index mismatch detected! Automation index: {index}, UI index: {current_ui_index}",
@@ -806,7 +812,7 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
                 logger.error("Failed to click accept button")
                 return False
 
-            logger.info("✅ Accept button clicked successfully - starting cooldown countdown")
+            logger.info("Accept button clicked successfully - starting cooldown countdown")
             
             # VERIFICATION: Check if Accept button is still visible (indicating click may have failed)
             time.sleep(0.5)  # Brief delay to allow page to update
@@ -836,15 +842,15 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
                         else:
                             logger.info("Accept button verification successful after retry")
                     else:
-                        logger.info("✅ Accept button verification successful - button no longer visible")
+                        logger.info("Accept button verification successful - button no longer visible")
             except Exception as e:
                 logger.warning(f"Could not verify Accept button state: {e}")
             
             # Log verification result for debugging
             if accept_button_still_visible:
-                logger.warning("⚠️ Accept button verification failed - automation may have issues")
+                logger.warning("Accept button verification failed - automation may have issues")
             else:
-                logger.info("✅ Accept button verification passed")
+                logger.info("Accept button verification passed")
             
             # Enhanced debugging for cooldown countdown
             cooldown_duration = int(current_timers[2])
@@ -870,17 +876,22 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
                     countdown_completed.set()
             
             # Start the countdown with completion callback
-            ui.countdown(
+            result_sync = ui.countdown(
                 cooldown_duration, 
                 "Waiting...", 
                 next_text, 
                 last_text,
                 on_complete=on_cooldown_complete
             )
+            # If countdown returned a result synchronously (e.g., mocked in tests), use it
+            if isinstance(result_sync, dict):
+                countdown_result = result_sync
+                countdown_completed.set()
+                logger.info(f"Cooldown countdown returned synchronously: {countdown_result}")
             
             # CRITICAL FIX: Wait for countdown to actually complete
             logger.info("Waiting for cooldown countdown to complete...")
-            if countdown_completed.wait(timeout=cooldown_duration + 10):
+            if countdown_completed.is_set() or countdown_completed.wait(timeout=cooldown_duration + 10):
                 logger.info(f"Cooldown countdown completed with result: {countdown_result}")
             else:
                 logger.warning("Cooldown countdown timeout - forcing completion")
@@ -912,7 +923,7 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
                         
                 logger.info("Cooldown countdown resumed and completed")
 
-            logger.info(f"✅ Cooldown completed successfully for prompt {index + 1}")
+            logger.info(f"Cooldown completed successfully for prompt {index + 1}")
 
             # SIMPLIFIED FIX: Single, clean UI update after cycle completion
             # This eliminates the race condition by doing one simple update

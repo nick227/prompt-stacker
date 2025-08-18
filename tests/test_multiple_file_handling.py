@@ -13,7 +13,7 @@ import sys
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from ui_session_refactored import RefactoredSessionUI
+from ui.session_app import RefactoredSessionUI
 from file_service import PromptListService
 
 
@@ -41,13 +41,34 @@ class TestMultipleFileHandling:
     def ui_instance(self):
         """Create a UI instance for testing."""
         try:
-            ui = RefactoredSessionUI(default_start=5, default_main=500, default_cooldown=0.2)
-            yield ui
-            # Cleanup
-            try:
-                ui.window.destroy()
-            except:
-                pass
+            # Mock customtkinter to prevent real UI creation
+            with patch('customtkinter.CTk') as mock_ctk, \
+                 patch('customtkinter.CTkFrame') as mock_frame, \
+                 patch('customtkinter.CTkLabel') as mock_label, \
+                 patch('customtkinter.CTkButton') as mock_button, \
+                 patch('customtkinter.CTkTextbox') as mock_textbox, \
+                 patch('customtkinter.CTkEntry') as mock_entry, \
+                 patch('customtkinter.CTkScrollableFrame') as mock_scrollable_frame:
+                
+                # Mock the window
+                mock_window = Mock()
+                mock_ctk.return_value = mock_window
+                
+                # Mock UI widgets
+                mock_window.after = Mock()
+                mock_window.after_idle = Mock()
+                mock_window.quit = Mock()
+                mock_window.destroy = Mock()
+                
+                ui = RefactoredSessionUI(default_start=5, default_main=500, default_cooldown=0.2)
+                yield ui
+                
+                # Cleanup
+                try:
+                    ui.window.destroy()
+                except:
+                    pass
+                    
         except Exception as e:
             # Skip tests if UI can't be created (e.g., no display)
             pytest.skip(f"UI cannot be created: {e}")
@@ -374,29 +395,48 @@ class TestMultipleFileHandlingIntegration:
     def test_full_workflow_multiple_files(self, temp_dir):
         """Test the complete workflow with multiple files."""
         try:
-            # Create UI instance
-            ui = RefactoredSessionUI(default_start=5, default_main=500, default_cooldown=0.2)
-            
-            # Create test files with different content
-            prompts1 = ["Hello", "World"]
-            prompts2 = ["Test", "Automation"]
-            prompts3 = ["Final", "Prompt"]
-            
-            file1_path = self.create_test_file(temp_dir, "file1.txt", prompts1, "txt")
-            file2_path = self.create_test_file(temp_dir, "file2.py", prompts2, "py")
-            file3_path = self.create_test_file(temp_dir, "file3.csv", prompts3, "csv")
-            
-            # Set path and validate
-            combined_path = f"{file1_path};{file2_path};{file3_path}"
-            ui.prompt_path_var.set(combined_path)
-            ui._validate_prompt_list()
-            
-            # Verify results
-            expected_prompts = prompts1 + prompts2 + prompts3
-            assert ui.prompts == expected_prompts
-            assert ui.prompt_count == len(expected_prompts)
-            assert ui.current_prompt_index == 0
-            
+            # Mock customtkinter to prevent real UI creation
+            with patch('customtkinter.CTk') as mock_ctk, \
+                 patch('customtkinter.CTkFrame') as mock_frame, \
+                 patch('customtkinter.CTkLabel') as mock_label, \
+                 patch('customtkinter.CTkButton') as mock_button, \
+                 patch('customtkinter.CTkTextbox') as mock_textbox, \
+                 patch('customtkinter.CTkEntry') as mock_entry, \
+                 patch('customtkinter.CTkScrollableFrame') as mock_scrollable_frame:
+                
+                # Mock the window
+                mock_window = Mock()
+                mock_ctk.return_value = mock_window
+                
+                # Mock UI widgets
+                mock_window.after = Mock()
+                mock_window.after_idle = Mock()
+                mock_window.quit = Mock()
+                mock_window.destroy = Mock()
+                
+                # Create UI instance
+                ui = RefactoredSessionUI(default_start=5, default_main=500, default_cooldown=0.2)
+                
+                # Create test files with different content
+                prompts1 = ["Hello", "World"]
+                prompts2 = ["Test", "Automation"]
+                prompts3 = ["Final", "Prompt"]
+                
+                file1_path = self.create_test_file(temp_dir, "file1.txt", prompts1, "txt")
+                file2_path = self.create_test_file(temp_dir, "file2.py", prompts2, "py")
+                file3_path = self.create_test_file(temp_dir, "file3.csv", prompts3, "csv")
+                
+                # Set path and validate
+                combined_path = f"{file1_path};{file2_path};{file3_path}"
+                ui.prompt_path_var.set(combined_path)
+                ui._validate_prompt_list()
+                
+                # Verify results
+                expected_prompts = prompts1 + prompts2 + prompts3
+                assert ui.prompts == expected_prompts
+                assert ui.prompt_count == len(expected_prompts)
+                assert ui.current_prompt_index == 0
+                
         except Exception as e:
             # Skip test if UI can't be created (e.g., no display)
             pytest.skip(f"UI cannot be created: {e}")

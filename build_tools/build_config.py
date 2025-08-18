@@ -30,50 +30,13 @@ MAIN_SCRIPT = PROJECT_ROOT / "cursor.py"
 ICON_FILE = PROJECT_ROOT / "assets" / "icon.ico"
 
 # Hidden imports (PyInstaller might miss these)
-HIDDEN_IMPORTS = [
-    # CustomTkinter
-    "customtkinter",
-    "customtkinter.windows.widgets",
-    "customtkinter.windows.widgets.core_rendering",
-    "customtkinter.windows.widgets.font",
-    "customtkinter.windows.widgets.image",
-    "customtkinter.windows.widgets.scaling",
-    "customtkinter.windows.widgets.theme",
-    
-    # Automation libraries
-    "pyautogui",
-    "pyperclip", 
-    "pywinauto",
-    "pynput",
-    "psutil",
-    
-    # System libraries
-    "tkinter",
-    "tkinter.ttk",
-    "tkinter.messagebox",
-    "tkinter.filedialog",
-    
-    # Our modules
-    "src",
+hiddenimports = [
     "src.automator",
-    "src.ui_session_refactored",
+    "src.ui.session_app",
+    "src.ui.session_controller",
+    "src.ui.prompt_io",
+    "src.ui.state_manager",
     "src.inline_prompt_editor_service",
-    "src.file_service",
-    "src.parser_service",
-    "src.writer_service",
-    "src.path_service",
-    "src.config_service",
-    "src.ui_builders",
-    "src.coordinate_service",
-    "src.countdown_service",
-    "src.event_service",
-    "src.error_handler",
-    "src.performance",
-    "src.config",
-    "src.dpi",
-    "src.win_focus",
-    "src.settings_store",
-    "src.window_service",
 ]
 
 # Data files to include
@@ -142,7 +105,7 @@ def get_build_config(dev_mode: bool = False) -> Dict[str, Any]:
         "app_author": APP_AUTHOR,
         "main_script": str(MAIN_SCRIPT),
         "icon_file": str(ICON_FILE) if ICON_FILE.exists() else None,
-        "hidden_imports": HIDDEN_IMPORTS,
+        "hidden_imports": hiddenimports,
         "data_files": DATA_FILES,
         "exclude_patterns": EXCLUDE_PATTERNS,
         "pyinstaller_options": options,
