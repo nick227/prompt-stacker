@@ -37,23 +37,8 @@ except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from config import (
-        BUTTON_BG,
-        BUTTON_HOVER,
-        BUTTON_TEXT,
-        COLOR_BG,
-        COLOR_BORDER,
-        COLOR_ERROR,
-        COLOR_SUCCESS,
-        COLOR_SURFACE,
         COLOR_TEXT,
-        COLOR_TEXT_MUTED,
-        FONT_BODY,
-        FONT_H1,
         FONT_H2,
-        GUTTER,
-        PADDING,
-        SECTION_RADIUS,
-        WINDOW_MARGIN,
     )
 
 

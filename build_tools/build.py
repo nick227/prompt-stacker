@@ -7,7 +7,6 @@ Usage: python build.py [command] [options]
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Add build_tools to path
@@ -44,20 +43,20 @@ def main():
         print("  python build.py build-with-tests")
         print("  python build.py package --installer")
         return 1
-    
+
     # Extract command and arguments
     command = sys.argv[1]
     args = sys.argv[2:]
-    
+
     # Parse arguments
     no_clean = "--no-clean" in args
     installer = "--installer" in args
-    
+
     # Remove parsed arguments
     args = [arg for arg in args if arg not in ["--no-clean", "--installer"]]
-    
+
     manager = BuildManager()
-    
+
     try:
         if command == "build":
             success = manager.build_production(clean=not no_clean)
@@ -86,9 +85,9 @@ def main():
             print(f"❌ Unknown command: {command}")
             print("Run 'python build.py' for help")
             success = False
-        
+
         return 0 if success else 1
-        
+
     except KeyboardInterrupt:
         print("\n⚠️  Build interrupted by user")
         return 1

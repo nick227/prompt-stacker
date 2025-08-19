@@ -9,7 +9,6 @@ Version: 1.0
 """
 
 import threading
-import time
 import tkinter
 from typing import Callable, Dict, List, Optional
 
@@ -602,9 +601,9 @@ class InlinePromptEditorService:
         try:
             # Get the next prompt text
             next_prompt = self.get_next_prompt()
-            
+
             # Update the next prompt display if it exists
-            if hasattr(self, 'next_box') and self.next_box:
+            if hasattr(self, "next_box") and self.next_box:
                 next_text_with_prefix = f"Next: {next_prompt}" if next_prompt else ""
                 self.next_box.configure(state="normal")
                 self.next_box.delete("1.0", "end")

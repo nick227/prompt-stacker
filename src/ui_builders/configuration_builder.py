@@ -53,9 +53,7 @@ except ImportError:
         GUTTER,
         LABELS,
         PADDING,
-        SECTION_RADIUS,
         TARGET_KEYS,
-        WINDOW_MARGIN,
     )
     from ui_builders.base_builder import BaseUIBuilder
 

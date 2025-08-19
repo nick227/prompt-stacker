@@ -13,23 +13,22 @@ def run_ruff_check():
     """Run Ruff check on the src directory."""
     print("🔍 Running Ruff linting check...")
     print("=" * 50)
-    
+
     try:
         result = subprocess.run(
             ["ruff", "check", "src/"],
             capture_output=True,
             text=True,
-            cwd=Path(__file__).parent
+            cwd=Path(__file__).parent, check=False,
         )
-        
+
         if result.returncode == 0:
             print("✅ No linting issues found!")
             return True
-        else:
-            print("⚠️  Linting issues found:")
-            print(result.stdout)
-            return False
-            
+        print("⚠️  Linting issues found:")
+        print(result.stdout)
+        return False
+
     except FileNotFoundError:
         print("❌ Ruff not found. Please install it with: pip install ruff")
         return False
@@ -42,25 +41,24 @@ def run_ruff_format():
     """Run Ruff format on the src directory."""
     print("\n🎨 Running Ruff formatting...")
     print("=" * 50)
-    
+
     try:
         result = subprocess.run(
             ["ruff", "format", "src/"],
             capture_output=True,
             text=True,
-            cwd=Path(__file__).parent
+            cwd=Path(__file__).parent, check=False,
         )
-        
+
         if result.returncode == 0:
             print("✅ Code formatting completed!")
             if result.stdout:
                 print(result.stdout)
             return True
-        else:
-            print("❌ Formatting issues found:")
-            print(result.stdout)
-            return False
-            
+        print("❌ Formatting issues found:")
+        print(result.stdout)
+        return False
+
     except FileNotFoundError:
         print("❌ Ruff not found. Please install it with: pip install ruff")
         return False
@@ -73,13 +71,13 @@ def main():
     """Main function to run linting and formatting."""
     print("🚀 Cursor Automation System - Code Quality Check")
     print("=" * 50)
-    
+
     # Run formatting first
     format_success = run_ruff_format()
-    
+
     # Run linting
     lint_success = run_ruff_check()
-    
+
     # Summary
     print("\n📊 Summary:")
     print("=" * 50)

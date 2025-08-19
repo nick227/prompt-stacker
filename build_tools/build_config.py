@@ -4,10 +4,9 @@ Build Configuration
 Centralized configuration for building the automation application.
 """
 
-import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict
 
 # Project root directory
 PROJECT_ROOT = Path(__file__).parent.parent.absolute()
@@ -49,7 +48,7 @@ DATA_FILES = [
 EXCLUDE_PATTERNS = [
     "*.pyc",
     "__pycache__",
-    "*.pyo", 
+    "*.pyo",
     "*.pyd",
     ".git",
     ".gitignore",
@@ -97,7 +96,7 @@ def get_build_config(dev_mode: bool = False) -> Dict[str, Any]:
         Build configuration dictionary
     """
     options = DEV_OPTIONS if dev_mode else PYINSTALLER_OPTIONS
-    
+
     return {
         "app_name": APP_NAME,
         "app_version": APP_VERSION,
@@ -124,28 +123,28 @@ def validate_build_environment() -> Dict[str, Any]:
     """
     errors = []
     warnings = []
-    
+
     # Check Python version
     if sys.version_info < (3, 8):
         errors.append("Python 3.8+ required")
-    
+
     # Check required files
     if not MAIN_SCRIPT.exists():
         errors.append(f"Main script not found: {MAIN_SCRIPT}")
-    
+
     # Check build directories
     for directory in [BUILD_DIR, DIST_DIR, SPEC_DIR]:
         if not directory.exists():
             directory.mkdir(parents=True, exist_ok=True)
             warnings.append(f"Created directory: {directory}")
-    
+
     # Check PyInstaller
     try:
         import PyInstaller
         warnings.append(f"PyInstaller version: {PyInstaller.__version__}")
     except ImportError:
         errors.append("PyInstaller not installed. Run: pip install pyinstaller")
-    
+
     return {
         "valid": len(errors) == 0,
         "errors": errors,

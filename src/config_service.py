@@ -139,7 +139,7 @@ class ConfigService:
             return False
 
     def load_timer_preferences(
-        self, default_main_wait: str = "500", default_get_ready_delay: str = "3"
+        self, default_main_wait: str = "500", default_get_ready_delay: str = "3",
     ) -> tuple[str, str]:
         """
         Load the saved timer preferences.
@@ -159,7 +159,7 @@ class ConfigService:
                     timer_settings = json.load(f)
                     main_wait = timer_settings.get("main_wait", default_main_wait)
                     get_ready_delay = timer_settings.get(
-                        "get_ready_delay", default_get_ready_delay
+                        "get_ready_delay", default_get_ready_delay,
                     )
                     return main_wait, get_ready_delay
         except (OSError, json.JSONDecodeError) as e:

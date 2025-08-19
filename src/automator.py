@@ -2,7 +2,7 @@ import logging
 import sys
 import threading
 import time
-from typing import Dict, List, Optional, Tuple, Any
+from typing import List, Tuple
 
 import pyautogui
 import pyperclip
@@ -39,8 +39,8 @@ class UnicodeStreamHandler(logging.StreamHandler):
             msg = self.format(record)
             stream = self.stream
             # Write with error handling for Unicode
-            stream.buffer.write(msg.encode('utf-8'))
-            stream.buffer.write(b'\n')
+            stream.buffer.write(msg.encode("utf-8"))
+            stream.buffer.write(b"\n")
             self.flush()
         except Exception:
             self.handleError(record)
@@ -49,7 +49,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(log_file, encoding='utf-8'),
+        logging.FileHandler(log_file, encoding="utf-8"),
         UnicodeStreamHandler(),
     ],
 )
@@ -106,47 +106,30 @@ def run_with_timeout(func, timeout: float, *args, **kwargs):
     """
     result = None
     exception = None
-    
+
     def target():
         nonlocal result, exception
         try:
             result = func(*args, **kwargs)
         except Exception as e:
             exception = e
-    
+
     thread = threading.Thread(target=target, daemon=True)
     thread.start()
     thread.join(timeout=timeout)
-    
+
     if thread.is_alive():
         logger.error(f"Operation timed out after {timeout} seconds: {func.__name__}")
         return None
-    
+
     if exception:
         logger.error(f"Operation failed: {func.__name__} - {exception}")
         return None
-    
+
     return result
 
 
-def get_thread_pool_status() -> Dict[str, any]:
-    """
-    Get thread status information (simplified).
-
-    Returns:
-        Dictionary with thread status
-    """
-    return {
-        "active_operations": 0,  # Simplified - no thread pool tracking
-        "max_workers": 1,
-        "is_shutdown": False,
-    }
-
-
-def cleanup_automation_resources() -> None:
-    """Cleanup automation resources (simplified)."""
-    # No thread pool to clean up
-    pass
+# Thread pool functions removed - simplified architecture
 
 
 def paste_text_safely(text: str) -> bool:
@@ -201,46 +184,7 @@ def click_with_timeout(coords: Tuple[int, int], timeout: float = CLICK_TIMEOUT) 
     return run_with_timeout(click_operation, timeout) or False
 
 
-def right_click_with_timeout(timeout: float = CLICK_TIMEOUT) -> bool:
-    """Right click with timeout protection."""
-
-    def right_click_operation():
-        try:
-            pyautogui.rightClick()
-            return True
-        except Exception as e:
-            logger.error(f"Right click operation failed: {e}")
-            return False
-
-    return run_with_timeout(right_click_operation, timeout) or False
-
-
-def hotkey_with_timeout(*keys, timeout: float = CLICK_TIMEOUT) -> bool:
-    """Execute hotkey with timeout protection."""
-
-    def hotkey_operation():
-        try:
-            pyautogui.hotkey(*keys)
-            return True
-        except Exception as e:
-            logger.error(f"Hotkey operation failed: {e}")
-            return False
-
-    return run_with_timeout(hotkey_operation, timeout) or False
-
-
-def press_key_with_timeout(key: str, timeout: float = CLICK_TIMEOUT) -> bool:
-    """Press a single key with timeout protection."""
-
-    def press_operation():
-        try:
-            pyautogui.press(key)
-            return True
-        except Exception as e:
-            logger.error(f"Key press operation failed: {e}")
-            return False
-
-    return run_with_timeout(press_operation, timeout) or False
+# Simplified timeout functions - inline where needed
 
 
 def click_button_or_fallback(
@@ -249,7 +193,7 @@ def click_button_or_fallback(
     pattern: str,
 ) -> bool:
     """Click button with fallback and timeout protection."""
-    
+
     logger.info(f"Attempting to click button at coordinates {coords} with pattern '{pattern}'")
 
     def button_operation():
@@ -257,10 +201,10 @@ def click_button_or_fallback(
             if win.window is None and not win.connect():
                 logger.info("Window connection failed, falling back to coordinate click")
                 return click_with_timeout(coords)
-            
+
             logger.info("Searching for button with pattern: " + pattern)
             btn = win.window.child_window(control_type="Button", title_re=pattern)
-            
+
             if btn.exists():
                 logger.info(f"Found button '{btn.window_text()}' - attempting to click")
                 try:
@@ -280,7 +224,7 @@ def click_button_or_fallback(
                 logger.warning(f"No button found matching pattern '{pattern}'")
         except Exception as e:
             logger.warning(f"Button search/click failed: {e}")
-            
+
         logger.info("Falling back to coordinate-based click")
         return click_with_timeout(coords)
 
@@ -293,70 +237,46 @@ def perform_paste_operation(text: str) -> bool:
     """Perform paste operation with multiple fallback methods and timeout protection."""
     logger.info("Selecting all text and pasting")
 
-    # Select all with timeout
-    if not hotkey_with_timeout("ctrl", "a"):
-        logger.warning("Select all operation failed")
-        return False
-
-    time.sleep(0.1)  # small delay to ensure selection
-
-    # Try multiple paste methods with timeout protection
-    paste_success = False
-
-    # Method 1: Ctrl+V
-    if hotkey_with_timeout("ctrl", "v"):
+    # Select all and paste (simplified)
+    try:
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(0.1)
+        pyautogui.hotkey("ctrl", "v")
         time.sleep(0.1)
         logger.info("Ctrl+V paste operation completed")
-        paste_success = True
-    else:
-        logger.warning("Ctrl+V paste failed, trying alternative method")
+        return True
+    except Exception as e:
+        logger.warning(f"Ctrl+V paste failed: {e}, trying direct text input")
+        try:
+            pyautogui.write(text)
+            logger.info("Direct text input completed")
+            return True
+        except Exception as e2:
+            logger.error(f"Direct text input failed: {e2}")
+            return False
 
-        # Method 2: Right-click paste
-        if right_click_with_timeout(timeout=1.0):
-            time.sleep(0.1)
-            if press_key_with_timeout("v", timeout=1.0):  # paste option
-                time.sleep(0.1)
-                logger.info("Right-click paste method completed")
-                paste_success = True
 
-        # Method 3: Direct text input
-        if not paste_success:
-            logger.warning("All paste methods failed, trying direct text input")
-
-            def write_operation():
-                try:
-                    pyautogui.write(text)
-                    return True
-                except Exception as e:
-                    logger.error(f"Direct text input failed: {e}")
-                    return False
-
-            if run_with_timeout(write_operation, 5.0):
-                logger.info("Direct text input completed")
-                paste_success = True
-
-    return paste_success
 
 
 def sanitize_text_for_logging(text: str) -> str:
     """Sanitize text for logging by replacing problematic Unicode characters."""
     if not text:
         return text
-    
+
     # Replace problematic Unicode characters
     replacements = {
-        '\u2011': '-',  # Non-breaking hyphen
-        '\u2013': '-',  # En dash
-        '\u2014': '-',  # Em dash
-        '\u2018': "'",  # Left single quotation mark
-        '\u2019': "'",  # Right single quotation mark
-        '\u201c': '"',  # Left double quotation mark
-        '\u201d': '"',  # Right double quotation mark
+        "\u2011": "-",  # Non-breaking hyphen
+        "\u2013": "-",  # En dash
+        "\u2014": "-",  # Em dash
+        "\u2018": "'",  # Left single quotation mark
+        "\u2019": "'",  # Right single quotation mark
+        "\u201c": '"',  # Left double quotation mark
+        "\u201d": '"',  # Right double quotation mark
     }
-    
+
     for unicode_char, replacement in replacements.items():
         text = text.replace(unicode_char, replacement)
-    
+
     return text
 
 
@@ -373,7 +293,7 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
     initial_prompts = ui.get_prompts_safe()
     if prompt_index >= len(initial_prompts):
         logger.error(
-            f"Prompt index {prompt_index} out of range for {len(initial_prompts)} prompts"
+            f"Prompt index {prompt_index} out of range for {len(initial_prompts)} prompts",
         )
         return False
 
@@ -382,7 +302,7 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
 
     win = CursorWindow()
 
-    # CRITICAL FIX: Capture initial state to prevent race conditions
+    # Capture initial state
     initial_prompts = ui.get_prompts_safe()
     initial_coords = ui.get_coords()
     initial_timers = ui.get_timers()
@@ -393,7 +313,7 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
 
     if prompt_index >= len(initial_prompts):
         logger.error(
-            f"Prompt index {prompt_index} out of range for {len(initial_prompts)} prompts"
+            f"Prompt index {prompt_index} out of range for {len(initial_prompts)} prompts",
         )
         return False
 
@@ -402,14 +322,14 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
     # Get the text for this prompt
     text = initial_prompts[prompt_index]
     logger.info(
-        f"Processing prompt {prompt_index + 1}/{len(initial_prompts)}: {sanitize_text_for_logging(text[:50])}..."
+        f"Processing prompt {prompt_index + 1}/{len(initial_prompts)}: {sanitize_text_for_logging(text[:50])}...",
     )
 
     # Define last_text for single prompt automation
     last_text = None
 
-    # CRITICAL FIX: Check if stop was requested
-    if hasattr(ui, 'session_controller') and ui.session_controller.is_stop_requested():
+    # Check if stop was requested
+    if hasattr(ui, "session_controller") and ui.session_controller.is_stop_requested():
         logger.info("Single prompt automation stopped - stop was requested")
         return False
 
@@ -427,21 +347,11 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
         logger.info("Single prompt automation cancelled during get ready countdown")
         return False
 
-    # Check for pause state during countdown execution
+    # SIMPLIFIED: Handle pause state
     if result.get("paused"):
         logger.info("Single prompt automation paused during get ready countdown")
-        # Wait for countdown to complete (which will happen when resumed)
-        timeout_start = time.time()
-        timeout_duration = 300  # 5 minutes timeout
-        
         while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
-            time.sleep(0.05)  # More responsive checking
-            
-            # Add timeout protection
-            if time.time() - timeout_start > timeout_duration:
-                logger.error("Countdown wait timeout - forcing continuation")
-                break
-                
+            time.sleep(0.1)
         logger.info("Single prompt automation resumed after get ready countdown")
 
     # Process automation with timeout protection
@@ -494,21 +404,11 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
         logger.info("Single prompt automation cancelled during main wait countdown")
         return False
 
-    # Check for pause state during countdown execution
+    # SIMPLIFIED: Handle pause state
     if result.get("paused"):
         logger.info("Single prompt automation paused during main wait countdown")
-        # Wait for countdown to complete (which will happen when resumed)
-        timeout_start = time.time()
-        timeout_duration = 300  # 5 minutes timeout
-        
         while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
-            time.sleep(0.05)  # More responsive checking
-            
-            # Add timeout protection
-            if time.time() - timeout_start > timeout_duration:
-                logger.error("Countdown wait timeout - forcing continuation")
-                break
-                
+            time.sleep(0.1)
         logger.info("Single prompt automation resumed after main wait countdown")
 
     if not click_button_or_fallback(
@@ -522,22 +422,12 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
     cooldown_result = ui.countdown(initial_timers[2], "Waiting...", next_text, last_text)  # cooldown
     if cooldown_result.get("cancelled"):
         return False
-        
-    # Check for pause state during cooldown countdown execution
+
+    # SIMPLIFIED: Handle cooldown pause state
     if cooldown_result.get("paused"):
         logger.info("Single prompt automation paused during cooldown countdown")
-        # Wait for countdown to complete (which will happen when resumed)
-        timeout_start = time.time()
-        timeout_duration = 60  # 1 minute timeout for cooldown
-        
         while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
-            time.sleep(0.05)  # More responsive checking
-            
-            # Add timeout protection
-            if time.time() - timeout_start > timeout_duration:
-                logger.error("Cooldown countdown wait timeout - forcing continuation")
-                break
-                
+            time.sleep(0.1)
         logger.info("Single prompt automation resumed after cooldown countdown")
 
     logger.info(
@@ -556,16 +446,9 @@ def run_automation_with_ui(ui) -> bool:
     Returns:
         True if automation completed successfully, False otherwise
     """
-    # BULLETPROOF IMPROVEMENT: Comprehensive parameter validation
+    # SIMPLIFIED: Basic validation
     if ui is None:
         logger.error("UI parameter is None")
-        return False
-    
-    # Validate UI has required components
-    required_components = ['countdown_service', 'coordinate_service', 'window_service']
-    missing_components = [comp for comp in required_components if not hasattr(ui, comp)]
-    if missing_components:
-        logger.error(f"UI missing required components: {missing_components}")
         return False
 
     try:
@@ -574,44 +457,12 @@ def run_automation_with_ui(ui) -> bool:
     except Exception as e:
         logger.warning(f"Failed to enable DPI awareness: {e}")
 
-    # BULLETPROOF IMPROVEMENT: Initialize window with error handling
-    try:
-        win = CursorWindow()
-    except Exception as e:
-        logger.error(f"Failed to initialize window: {e}")
-        return False
+    win = CursorWindow()
 
-    # BULLETPROOF IMPROVEMENT: Validate all required data before starting
-    try:
-        coords: Dict[str, Tuple[int, int]] = ui.get_coords()
-        start_delay, main_wait, cooldown, get_ready_delay = ui.get_timers()
-        
-
-        
-        # Validate coordinates
-        required_coords = ['input', 'submit', 'accept']
-        missing_coords = [coord for coord in required_coords if coord not in coords]
-        if missing_coords:
-            logger.error(f"Missing required coordinates: {missing_coords}")
-            return False
-        
-        # Validate timers
-        if any(timer <= 0 for timer in [start_delay, main_wait, cooldown, get_ready_delay]):
-            logger.error("Invalid timer values - all timers must be positive")
-            return False
-            
-    except Exception as e:
-        logger.error(f"Failed to get UI configuration: {e}")
-        return False
-
-    # CRITICAL FIX: Capture initial state to prevent race conditions
-    try:
-        initial_prompts = ui.get_prompts_safe()
-        initial_coords = ui.get_coords()
-        initial_timers = ui.get_timers()
-    except Exception as e:
-        logger.error(f"Failed to capture initial state: {e}")
-        return False
+    # SIMPLIFIED: Get initial state
+    initial_prompts = ui.get_prompts_safe()
+    initial_coords = ui.get_coords()
+    initial_timers = ui.get_timers()
 
     if not initial_prompts:
         logger.error("No prompts available from UI")
@@ -619,146 +470,67 @@ def run_automation_with_ui(ui) -> bool:
 
     logger.info(f"Using {len(initial_prompts)} prompts from UI")
 
-    # BULLETPROOF IMPROVEMENT: Start delay with error recovery
-    try:
-        next_preview = initial_prompts[0] if initial_prompts else None
-        
-        result = ui.countdown(initial_timers[0], "About to start!", next_preview, None)
-        if result.get("cancelled"):
-            logger.info("Automation cancelled during start delay")
-            return False
-    except Exception as e:
-        logger.error(f"Failed during start delay: {e}")
+    # Start delay
+    result = ui.countdown(initial_timers[0], "About to start!", initial_prompts[0] if initial_prompts else None, None)
+    if result.get("cancelled"):
+        logger.info("Automation cancelled during start delay")
         return False
 
     index = 0
     last_text = None
-    consecutive_failures = 0
-    max_consecutive_failures = 3
-    
+
     try:
         while index < len(initial_prompts):
-            # CRITICAL FIX: Check if stop was requested
-            if hasattr(ui, 'session_controller') and ui.session_controller.is_stop_requested():
+            # Check if stop was requested
+            if hasattr(ui, "session_controller") and ui.session_controller.is_stop_requested():
                 logger.info("Automation stopped - stop was requested")
                 return False
-            # BULLETPROOF IMPROVEMENT: Validate state consistency
+
+            # SIMPLIFIED: Basic state validation
             try:
-                current_prompts = ui.get_prompts_safe()
-                current_coords = ui.get_coords()
-                current_timers = ui.get_timers()
-
-                if current_prompts != initial_prompts:
-                    logger.error("Prompt list changed during automation! Stopping for safety.")
-                    return False
-
-                if current_coords != initial_coords:
-                    logger.error("Coordinates changed during automation! Stopping for safety.")
-                    return False
-
-                if current_timers != initial_timers:
-                    logger.error("Timers changed during automation! Stopping for safety.")
+                if not ui.get_prompts_safe():
+                    logger.error("No prompts available during automation")
                     return False
             except Exception as e:
-                logger.error(f"Failed to validate state consistency: {e}")
+                logger.error(f"Failed to get prompts: {e}")
                 return False
 
-            # BULLETPROOF IMPROVEMENT: Update UI prompt index with error handling
-            try:
-                ui.update_prompt_index_from_automation(index)
-            except Exception as e:
-                logger.warning(f"Failed to update prompt index: {e}")
-
-            # CRITICAL FIX: Detect and fix stuck UI states before starting new cycle
-            try:
-                if hasattr(ui, 'detect_and_fix_stuck_ui') and ui.detect_and_fix_stuck_ui():
-                    logger.info("Stuck UI state detected and fixed before starting new cycle")
-            except Exception as e:
-                logger.warning(f"Error detecting stuck UI state: {e}")
 
 
+            # SIMPLIFIED: Get text
+            text = initial_prompts[index]
+            logger.info(f"Processing prompt {index + 1}/{len(initial_prompts)}: {sanitize_text_for_logging(text[:50])}...")
 
-            # BULLETPROOF IMPROVEMENT: Get text with validation
-            try:
-                text = initial_prompts[index]
-                if not text or not isinstance(text, str):
-                    logger.error(f"Invalid prompt at index {index}: {text}")
-                    consecutive_failures += 1
-                    if consecutive_failures >= max_consecutive_failures:
-                        logger.error("Too many consecutive failures - stopping automation")
-                        return False
-                    index += 1
-                    continue
-                    
-                logger.info(f"Processing prompt {index + 1}/{len(initial_prompts)}: {sanitize_text_for_logging(text[:50])}...")
-            except IndexError:
-                logger.error(f"Index {index} out of range for prompts list")
-                return False
-            except Exception as e:
-                logger.error(f"Error getting prompt text: {e}")
-                return False
-
-            # CRITICAL FIX: Define next_text before using it in countdown
+            # Define next_text before countdown
             next_text = (
                 initial_prompts[index + 1] if index + 1 < len(initial_prompts) else None
             )
 
-            # BULLETPROOF IMPROVEMENT: Get ready countdown with error recovery
-            try:
-                logger.info(f"Starting get ready countdown for {current_timers[3]} seconds")
-                ui.bring_to_front()
-                
-                result = ui.countdown(
-                    current_timers[3],  # get_ready_delay
-                    f"Starting {index + 1} of {len(initial_prompts)}",
-                    next_text,
-                    last_text,
-                )
-                if result.get("cancelled"):
-                    logger.info("Automation cancelled during get ready countdown")
-                    return False
-            except Exception as e:
-                logger.error(f"Failed during get ready countdown: {e}")
-                consecutive_failures += 1
-                if consecutive_failures >= max_consecutive_failures:
-                    logger.error("Too many consecutive failures - stopping automation")
-                    return False
-                index += 1
-                continue
+            # SIMPLIFIED: Get ready countdown
+            logger.info(f"Starting get ready countdown for {initial_timers[3]} seconds")
+            ui.bring_to_front()
 
-            # Check for pause state during countdown execution
+            result = ui.countdown(
+                initial_timers[3],  # get_ready_delay
+                f"Starting {index + 1} of {len(initial_prompts)}",
+                next_text,
+                last_text,
+            )
+            if result.get("cancelled"):
+                logger.info("Automation cancelled during get ready countdown")
+                return False
+
+            # SIMPLIFIED: Handle pause state
             if result.get("paused"):
                 logger.info("Automation paused during get ready countdown")
-                # Wait for countdown to complete (which will happen when resumed)
-                timeout_start = time.time()
-                timeout_duration = 300  # 5 minutes timeout
-                
-                while (
-                    ui.countdown_service.is_active()
-                    and ui.countdown_service.is_paused()
-                ):
-                    time.sleep(0.05)  # More responsive checking
-                    
-                    # Add timeout protection
-                    if time.time() - timeout_start > timeout_duration:
-                        logger.error("Countdown wait timeout - forcing continuation")
-                        break
-                        
+                while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
+                    time.sleep(0.1)
                 logger.info("Automation resumed after get ready countdown")
 
-            # Process visualization and automation
-            # Double-check that we're still processing the correct prompt
-            current_ui_index = ui.current_prompt_index
-            if not isinstance(current_ui_index, int):
-                # In mocked environments, this could be a Mock; treat as consistent
-                current_ui_index = index
-            if current_ui_index != index:
-                logger.warning(
-                    f"Index mismatch detected! Automation index: {index}, UI index: {current_ui_index}",
-                )
-                logger.warning("Skipping this iteration to avoid wrong text paste")
-                index = current_ui_index
-                continue
+            # SIMPLIFIED: Basic index validation
+            if not isinstance(ui.current_prompt_index, int) or ui.current_prompt_index != index:
+                logger.warning(f"Index mismatch - using automation index {index}")
+                ui.current_prompt_index = index
 
             logger.info(f"Copying text to clipboard: {sanitize_text_for_logging(text[:50])}...")
             clipboard_success = paste_text_safely(text)
@@ -769,15 +541,15 @@ def run_automation_with_ui(ui) -> bool:
 
             # Check for required coordinates
             if (
-                "input" not in current_coords
-                or "submit" not in current_coords
-                or "accept" not in current_coords
+                "input" not in initial_coords
+                or "submit" not in initial_coords
+                or "accept" not in initial_coords
             ):
                 logger.error("Missing required coordinates: input, submit, or accept")
                 return False
 
-            logger.info(f"Clicking input field at {current_coords['input']}")
-            if not click_with_timeout(current_coords["input"]):
+            logger.info(f"Clicking input field at {initial_coords['input']}")
+            if not click_with_timeout(initial_coords["input"]):
                 logger.error("Failed to click input field")
                 return False
 
@@ -788,143 +560,76 @@ def run_automation_with_ui(ui) -> bool:
                 logger.error("All paste methods failed")
                 return False
 
-            # Final safety check - verify we're still processing the correct prompt
+            # SIMPLIFIED: Basic final check
             if ui.current_prompt_index != index:
-                logger.error(
-                    f"Critical error: Index changed during paste operation! Expected: {index}, Got: {ui.current_prompt_index}",
-                )
-                logger.error(
-                    "This could result in wrong text being submitted. Stopping automation.",
-                )
-                return False
+                logger.warning("Index changed during paste - continuing with current index")
 
-            logger.info(f"Clicking submit button at {current_coords['submit']}")
+            logger.info(f"Clicking submit button at {initial_coords['submit']}")
             if not click_button_or_fallback(
                 win,
-                current_coords["submit"],
+                initial_coords["submit"],
                 r"^(Send|Submit|Enter|Run)$",
             ):
                 logger.error("Failed to click submit button")
                 return False
 
-            logger.info(f"Starting main wait countdown for {current_timers[1]} seconds")
-            
+            logger.info(f"Starting main wait countdown for {initial_timers[1]} seconds")
+
             # Start the main wait countdown - simplified
-            result = ui.countdown(current_timers[1], text, next_text, last_text)  # main_wait
+            result = ui.countdown(initial_timers[1], text, next_text, last_text)  # main_wait
             logger.info(f"Main wait countdown result: {result}")
             if result.get("cancelled"):
                 logger.info("Automation cancelled during main wait countdown")
                 return False
 
-            # Check for pause state during countdown execution
+            # SIMPLIFIED: Handle pause state
             if result.get("paused"):
                 logger.info("Automation paused during main wait countdown")
-                # Wait for countdown to complete (which will happen when resumed)
-                timeout_start = time.time()
-                timeout_duration = 300  # 5 minutes timeout
-                
-                while (
-                    ui.countdown_service.is_active()
-                    and ui.countdown_service.is_paused()
-                ):
-                    time.sleep(0.05)  # More responsive checking
-                    
-                    # Add timeout protection
-                    if time.time() - timeout_start > timeout_duration:
-                        logger.error("Countdown wait timeout - forcing continuation")
-                        break
-                        
+                # Simple wait for countdown to complete
+                while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
+                    time.sleep(0.1)
                 logger.info("Automation resumed after main wait countdown")
 
             if not click_button_or_fallback(
                 win,
-                current_coords["accept"],
+                initial_coords["accept"],
                 r"^(Accept|Continue|Proceed)$",
             ):
                 logger.error("Failed to click accept button")
                 return False
 
             logger.info("Accept button clicked successfully - starting cooldown countdown")
-            
-            # VERIFICATION: Check if Accept button is still visible (indicating click may have failed)
-            time.sleep(0.5)  # Brief delay to allow page to update
-            accept_button_still_visible = False
-            try:
-                if win.window and win.window.exists():
-                    accept_buttons = win.window.children(control_type="Button", title_re=r"^(Accept|Continue|Proceed)$")
-                    if accept_buttons:
-                        accept_button_still_visible = True
-                        logger.warning("Accept button is still visible after click - click may have failed")
-                        # Try clicking again
-                        logger.info("Attempting second Accept button click")
-                        if not click_button_or_fallback(
-                            win,
-                            current_coords["accept"],
-                            r"^(Accept|Continue|Proceed)$",
-                        ):
-                            logger.error("Second Accept button click also failed")
-                            return False
-                        logger.info("Second Accept button click successful")
-                        # Check again after second click
-                        time.sleep(0.3)
-                        accept_buttons_after_retry = win.window.children(control_type="Button", title_re=r"^(Accept|Continue|Proceed)$")
-                        if accept_buttons_after_retry:
-                            logger.error("Accept button still visible after retry - automation may be stuck")
-                            # Continue anyway as the automation might still work
-                        else:
-                            logger.info("Accept button verification successful after retry")
-                    else:
-                        logger.info("Accept button verification successful - button no longer visible")
-            except Exception as e:
-                logger.warning(f"Could not verify Accept button state: {e}")
-            
-            # Log verification result for debugging
-            if accept_button_still_visible:
-                logger.warning("Accept button verification failed - automation may have issues")
-            else:
-                logger.info("Accept button verification passed")
-            
+
             # Enhanced debugging for cooldown countdown
-            cooldown_duration = current_timers[2]
+            cooldown_duration = initial_timers[2]
             logger.info(f"Starting cooldown countdown for {cooldown_duration} seconds")
-            
+
             # Start the cooldown countdown - simplified
             countdown_result = ui.countdown(cooldown_duration, "Waiting...", next_text, last_text)
             if countdown_result.get("cancelled"):
                 logger.info("Automation cancelled during cooldown countdown")
                 return False
-                
-            # Handle pause state with timeout protection
+
+            # SIMPLIFIED: Handle cooldown pause state
             if countdown_result.get("paused"):
                 logger.info("Cooldown countdown was paused - waiting for completion")
-                wait_start = time.time()
                 while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
-                    time.sleep(0.05)
-                    if time.time() - wait_start > 60:  # 60 second timeout
-                        logger.warning("Cooldown countdown stuck in paused state - forcing completion")
-                        ui.countdown_service.force_complete()
-                        break
+                    time.sleep(0.1)
                 logger.info("Cooldown countdown resumed and completed")
 
             logger.info(f"Cooldown completed successfully for prompt {index + 1}")
 
-            # SIMPLIFIED FIX: Single, clean UI update after cycle completion
-            # This eliminates the race condition by doing one simple update
+            # SIMPLIFIED: Basic UI update
             try:
-                # Update prompt index for next cycle
-                ui.update_prompt_index_from_automation(index + 1)
-                
-                # Brief delay to allow UI to process the update
-                time.sleep(0.05)
-                
-                logger.info(f"UI updated for next cycle (prompt {index + 2})")
+                ui.current_prompt_index = index + 1
+                logger.info(f"Updated to prompt {index + 2}")
             except Exception as e:
-                logger.warning(f"UI update after cycle completion failed: {e}")
+                logger.warning(f"UI update failed: {e}")
 
             last_text = text
             index += 1
             logger.info(
-                f"Completed prompt {index}/{len(initial_prompts)}, advancing to next"
+                f"Completed prompt {index}/{len(initial_prompts)}, advancing to next",
             )
 
         logger.info("Automation completed successfully")
@@ -962,61 +667,6 @@ def run_automation(prompts: List[str]) -> bool:
     finally:
         # Cleanup resources
         ui.close()
-        cleanup_automation_resources()
 
 
-def main():
-    """Main entry point for the automation system."""
-    try:
-        # Import error handling and performance monitoring
-        try:
-            from .config import config
-            from .error_handler import handle_error, log_info
-            from .performance import (
-                cleanup_memory,
-                start_performance_monitoring,
-                stop_performance_monitoring,
-            )
-        except ImportError:
-            # Fallback for when running as script
-            from config import config
-            from error_handler import handle_error, log_info
-            from performance import (
-                cleanup_memory,
-                start_performance_monitoring,
-                stop_performance_monitoring,
-            )
-
-        # Validate configuration
-        validation = config.validate_config()
-        if not validation["valid"]:
-            print("Configuration validation failed:")
-            for error in validation["errors"]:
-                print(f"  - {error}")
-            return 1
-
-        # Start performance monitoring
-        start_performance_monitoring()
-        log_info("Application started with performance monitoring")
-
-        # Run automation
-        run_automation([])  # Empty list - prompts will be loaded from UI
-
-        return 0
-
-    except KeyboardInterrupt:
-        log_info("Application interrupted by user")
-        return 0
-    except Exception as e:
-        handle_error(e, context="Main application", show_ui=True)
-        return 1
-    finally:
-        # Cleanup
-        stop_performance_monitoring()
-        cleanup_memory()
-        cleanup_automation_resources()
-        log_info("Application shutdown complete")
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+# Main function removed - cursor.py handles application entry point

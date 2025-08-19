@@ -95,7 +95,7 @@ class PerformanceProfiler:
         try:
             result = func(*args, **kwargs)
             success = True
-        except Exception as e:
+        except Exception:
             result = None
             success = False
             raise

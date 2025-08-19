@@ -5,15 +5,15 @@ This module provides shared fixtures, test utilities, and configuration
 for all tests in the automation system.
 """
 
-import pytest
-import tempfile
 import os
 import sys
-from unittest.mock import Mock, MagicMock
-from typing import Dict, List, Tuple, Any
+import tempfile
+from unittest.mock import Mock
+
+import pytest
 
 # Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def sample_prompts():
         "Another test prompt with 'quotes'",
         "Multi-line\nprompt with\nline breaks",
         "Simple prompt",
-        "Prompt with special chars: !@#$%^&*()"
+        "Prompt with special chars: !@#$%^&*()",
     ]
 
 
@@ -41,7 +41,7 @@ def sample_coordinates():
     return {
         "input": (100, 200),
         "submit": (300, 400),
-        "accept": (500, 600)
+        "accept": (500, 600),
     }
 
 
@@ -49,25 +49,25 @@ def sample_coordinates():
 def mock_ui_widgets():
     """Mock UI widgets for testing services that depend on UI."""
     widgets = {
-        'time_label': Mock(),
-        'progress': Mock(),
-        'pause_btn': Mock(),
-        'current_box': Mock(),
-        'next_box': Mock(),
-        'status_label': Mock(),
-        'prompt_list_frame': Mock(),
-        'window': Mock()
+        "time_label": Mock(),
+        "progress": Mock(),
+        "pause_btn": Mock(),
+        "current_box": Mock(),
+        "next_box": Mock(),
+        "status_label": Mock(),
+        "prompt_list_frame": Mock(),
+        "window": Mock(),
     }
-    
+
     # Configure mock widgets
     for widget in widgets.values():
-        if hasattr(widget, 'configure'):
+        if hasattr(widget, "configure"):
             widget.configure = Mock()
-        if hasattr(widget, 'set'):
+        if hasattr(widget, "set"):
             widget.set = Mock()
-        if hasattr(widget, 'get'):
+        if hasattr(widget, "get"):
             widget.get = Mock(return_value="")
-    
+
     return widgets
 
 
@@ -162,16 +162,16 @@ def test_config():
         "window": {
             "width": 800,
             "height": 600,
-            "title": "Test Window"
+            "title": "Test Window",
         },
         "timers": {
             "default_wait": 5,
-            "default_countdown": 10
+            "default_countdown": 10,
         },
         "coordinates": {
             "input": (100, 200),
-            "submit": (300, 400)
-        }
+            "submit": (300, 400),
+        },
     }
 
 
@@ -199,17 +199,17 @@ def mock_performance_monitor():
 def pytest_configure(config):
     """Configure custom markers."""
     config.addinivalue_line(
-        "markers", "unit: mark test as a unit test"
+        "markers", "unit: mark test as a unit test",
     )
     config.addinivalue_line(
-        "markers", "integration: mark test as an integration test"
+        "markers", "integration: mark test as an integration test",
     )
     config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
+        "markers", "slow: mark test as slow running",
     )
     config.addinivalue_line(
-        "markers", "ui: mark test as requiring UI components"
+        "markers", "ui: mark test as requiring UI components",
     )
     config.addinivalue_line(
-        "markers", "automation: mark test as automation-related"
+        "markers", "automation: mark test as automation-related",
     )

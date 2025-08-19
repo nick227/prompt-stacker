@@ -7,9 +7,8 @@ This is the entry point for the refactored UI system.
 
 import logging
 import sys
-import tkinter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import customtkinter as ctk
 
@@ -52,11 +51,10 @@ try:
     from ..ui_builders.configuration_builder import ConfigurationBuilder
     from ..ui_builders.content_builder import ContentBuilder
     from ..ui_builders.control_builder import ControlBuilder
-
     from ..ui_builders.prompt_list_builder import PromptListBuilder
     from ..window_service import WindowService
-    from .session_controller import SessionController
     from .prompt_io import PromptIO
+    from .session_controller import SessionController
     from .state_manager import UIStateManager
 except ImportError:
     # Fallback for when running as script
@@ -64,22 +62,11 @@ except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from config import (
-        BTN_START,
-        BTN_STOP,
         BUTTON_BG,
         BUTTON_HOVER,
-        BUTTON_START_ACTIVE,
-        BUTTON_START_ACTIVE_HOVER,
-        BUTTON_START_INACTIVE,
-        BUTTON_STOP_ACTIVE,
-        BUTTON_STOP_ACTIVE_HOVER,
         BUTTON_TEXT,
         CARD_RADIUS,
         COLOR_BG,
-        COLOR_BORDER,
-        COLOR_ERROR,
-        COLOR_MODIFIED,
-        COLOR_SUCCESS,
         COLOR_SURFACE,
         COLOR_TEXT,
         COLOR_TEXT_MUTED,
@@ -93,15 +80,14 @@ except ImportError:
     from countdown_service import CountdownService
     from file_service import PromptListService as FilePromptService
     from inline_prompt_editor_service import InlinePromptEditorService
+    from ui.prompt_io import PromptIO
+    from ui.session_controller import SessionController
+    from ui.state_manager import UIStateManager
     from ui_builders.configuration_builder import ConfigurationBuilder
     from ui_builders.content_builder import ContentBuilder
     from ui_builders.control_builder import ControlBuilder
-
     from ui_builders.prompt_list_builder import PromptListBuilder
     from window_service import WindowService
-    from ui.session_controller import SessionController
-    from ui.prompt_io import PromptIO
-    from ui.state_manager import UIStateManager
 
     try:
         from memory_pool import cleanup_memory_pools
@@ -142,17 +128,17 @@ class RefactoredSessionUI:
         self._default_start = default_start
         self._default_main = default_main
         self._default_cooldown = default_cooldown
-        
+
         # Initialize main window
         self.window = ctk.CTk()
         self.window.title("Prompt Stacker")
         self.window.geometry("1000x800")
         self.window.minsize(800, 600)
-        
+
         # Initialize services
         self.window_service = WindowService(self.window)
         self.coordinate_service = CoordinateCaptureService()
-        
+
         # Initialize config service
         try:
             from ..config_service import ConfigService
@@ -160,67 +146,67 @@ class RefactoredSessionUI:
         except ImportError:
             # Fallback if config service not available
             self.config_service = None
-        
+
         # Initialize state
         self._prompts = []  # Private prompts list
         self.prompt_count = 0
         self.current_prompt_index = 0
-        
+
         # Initialize UI variables
         self.prompt_path_var = ctk.StringVar()
         self.main_wait_var = ctk.StringVar()
         self.get_ready_delay_var = ctk.StringVar()
-        
+
         # Build interface
         self._build_interface()
-        
+
         # Initialize services that depend on UI
         self.file_service = FilePromptService()
-        
+
         # Initialize controllers and managers
         self._initialize_controllers()
-        
+
         # Initialize UI-dependent services AFTER UI is built
         self._initialize_ui_services()
-        
+
         # Load timer preferences
         self._load_timer_preferences()
-        
+
         # Set up timer change tracking
         self._setup_timer_change_tracking()
-        
+
         # Load initial prompt list
         self.prompt_io.load_last_prompt_file()
-        
+
         # Update start button state
         self.state_manager.update_start_state()
-    
+
     def _build_interface(self) -> None:
         """Build the main interface."""
         # Configure window appearance
         ctk.set_appearance_mode("dark")
-        
+
         # Build main container
         self._build_main_container()
-        
+
         # Build sections
         self._build_combined_section()
-        
+
         # Use builders to construct UI components
         content_builder = ContentBuilder(self)
         content_builder.build_content_area(self.main_content_container)
-        
+
         configuration_builder = ConfigurationBuilder(self)
         configuration_builder.build_configuration_area(self.section_content)
-        
+
         # Countdown section removed - only using control timer
-        
+
         control_builder = ControlBuilder(self)
         control_builder.build_control_section(self.main_content_container)
-        
+
         prompt_list_builder = PromptListBuilder(self)
         prompt_list_builder.build_prompt_list_area(self.section_content)
-    
+
     def _build_main_container(self) -> None:
         """Build the main container."""
         self.main_container = ctk.CTkFrame(
@@ -234,7 +220,7 @@ class RefactoredSessionUI:
             padx=WINDOW_MARGIN,
             pady=WINDOW_MARGIN,
         )
-    
+
     def _build_combined_section(self) -> None:
         """Build the combined targets and timers section."""
         # Create combined section frame with flexible height
@@ -249,17 +235,17 @@ class RefactoredSessionUI:
             padx=PADDING,
             pady=(PADDING, GUTTER),
         )
-        
+
         # Initialize collapse state
         self.settings_collapsed = False
-        
+
         # Create header frame for toggle button
         self.section_header = ctk.CTkFrame(
             self.combined_section,
             fg_color="transparent",
         )
         self.section_header.pack(fill="x", padx=PADDING, pady=(5, 0))
-        
+
         # Add application title on the left (smaller font, shifted in)
         self.app_title = ctk.CTkLabel(
             self.section_header,
@@ -268,7 +254,7 @@ class RefactoredSessionUI:
             text_color=COLOR_TEXT,
         )
         self.app_title.pack(side="left", padx=(10, 0))
-        
+
         # Create toggle button (standard styling)
         self.settings_toggle_btn = ctk.CTkButton(
             self.section_header,
@@ -282,7 +268,7 @@ class RefactoredSessionUI:
             command=self._toggle_settings,
         )
         self.settings_toggle_btn.pack(side="right")
-        
+
         # Add tooltip-like label
         self.toggle_label = ctk.CTkLabel(
             self.section_header,
@@ -291,7 +277,7 @@ class RefactoredSessionUI:
             text_color=COLOR_TEXT_MUTED,
         )
         self.toggle_label.pack(side="right", padx=(0, GUTTER))
-        
+
         # Create a container for the main content area
         self.main_content_container = ctk.CTkFrame(
             self.combined_section,
@@ -303,7 +289,7 @@ class RefactoredSessionUI:
             padx=PADDING,
             pady=(5, PADDING),
         )
-        
+
         # Create content frame (not scrollable - only prompt list will scroll)
         self.section_content = ctk.CTkFrame(
             self.main_content_container,
@@ -315,12 +301,12 @@ class RefactoredSessionUI:
             padx=0,
             pady=0,
         )
-        
+
         # Configure grid weights for equal column distribution
         self.section_content.grid_columnconfigure(0, weight=1)  # Left column (prompt list)
         self.section_content.grid_columnconfigure(1, weight=1)  # Right column (configuration)
         self.section_content.grid_rowconfigure(0, weight=1)
-    
+
     def _initialize_ui_services(self) -> None:
         """Initialize UI-dependent services."""
         # Initialize countdown service (using control timer label)
@@ -334,10 +320,10 @@ class RefactoredSessionUI:
         if hasattr(self, "next_box"):
             ui_widgets["next_box"] = self.next_box
         # Progress bar removed - no longer needed
-        
+
         # Always create countdown service, even if some widgets are missing
         self.countdown_service = CountdownService(ui_widgets)
-        
+
         # Update countdown service with widget references
         if hasattr(self, "control_timer_label") and self.control_timer_label:
             self.countdown_service.time_label = self.control_timer_label  # Wire control timer as main display
@@ -347,7 +333,7 @@ class RefactoredSessionUI:
             self.countdown_service.current_box = self.current_box
         if hasattr(self, "next_box") and self.next_box:
             self.countdown_service.next_box = self.next_box
-        
+
         # Initialize inline prompt editor service (with safe widget access)
         if hasattr(self, "prompt_list_frame"):
             self.prompt_list_service = InlinePromptEditorService(
@@ -355,38 +341,41 @@ class RefactoredSessionUI:
                 on_prompt_click=self._on_prompt_click,
                 on_prompts_changed=self._on_prompts_changed,
             )
-            
+
             # CRITICAL FIX: Pass next_box reference to prompt list service
             # This allows the service to update the "Next:" textarea when prompts are modified
             if hasattr(self, "next_box") and self.next_box:
                 self.prompt_list_service.next_box = self.next_box
-    
+
     def _initialize_controllers(self) -> None:
         """Initialize controllers and managers."""
         # Initialize controllers
         self.session_controller = SessionController(self)
         self.prompt_io = PromptIO(self)
         self.state_manager = UIStateManager(self)
-        
+
         # Load initial prompt list
         self.prompt_io.validate_prompt_list()
-        
+
         # CRITICAL FIX: Start periodic UI health check to detect stuck states
         self.state_manager.start_ui_health_check()
-    
+
+        # Update start button state after controllers are initialized
+        self.state_manager.update_start_state()
+
     def _toggle_settings(self) -> None:
         """Toggle the settings column visibility."""
         self.settings_collapsed = not self.settings_collapsed
-        
+
         if self.settings_collapsed:
             # Hide settings column, expand prompt list
             self.section_content.grid_columnconfigure(0, weight=1)  # Prompt list takes full width
             self.section_content.grid_columnconfigure(1, weight=0)  # Settings column hidden
-            
+
             # Hide the settings container
             if hasattr(self, "config_container"):
                 self.config_container.grid_remove()
-            
+
             # Update button and label
             self.settings_toggle_btn.configure(text="⚙")
             self.toggle_label.configure(text="Show Settings")
@@ -394,18 +383,18 @@ class RefactoredSessionUI:
             # Show settings column, equal distribution
             self.section_content.grid_columnconfigure(0, weight=1)  # Equal distribution
             self.section_content.grid_columnconfigure(1, weight=1)  # Equal distribution
-            
+
             # Show the settings container
             if hasattr(self, "config_container"):
                 self.config_container.grid()
-            
+
             # Update button and label
             self.settings_toggle_btn.configure(text="⚙")
             self.toggle_label.configure(text="Hide Settings")
-        
+
         # Update the grid layout
         self.section_content.update_idletasks()
-    
+
     def _load_timer_preferences(self) -> None:
         """Load timer preferences from config service."""
         if hasattr(self, "config_service"):
@@ -416,7 +405,7 @@ class RefactoredSessionUI:
             # Fallback to defaults if config service not available
             self.main_wait_var.set(str(self._default_main))
             self.get_ready_delay_var.set("3")
-    
+
     def _save_timer_preferences(self) -> None:
         """Save timer preferences to config service."""
         if hasattr(self, "config_service"):
@@ -424,35 +413,35 @@ class RefactoredSessionUI:
                 self.main_wait_var.get(),
                 self.get_ready_delay_var.get(),
             )
-    
+
     def _setup_timer_change_tracking(self) -> None:
         """Set up tracking for timer value changes."""
         # Bind timer variables to save preferences when they change
         self.main_wait_var.trace_add("write", self._on_timer_changed)
         self.get_ready_delay_var.trace_add("write", self._on_timer_changed)
-    
+
     def _on_timer_changed(self, *_args) -> None:
         """Handle timer value changes."""
         # Save preferences when timer values change
         self._save_timer_preferences()
-    
+
     def _on_prompt_click(self, index: int) -> None:
         """Handle prompt list click."""
         self.state_manager.on_prompt_click(index)
-    
+
     def _on_prompts_changed(self, prompts: List[str]) -> None:
         """Handle prompts changed event from inline editor."""
         self.prompt_io.on_prompts_changed(prompts)
-    
+
     def wait_for_start(self) -> None:
         """Wait for user to start the automation."""
         # Start the mainloop - automation will be triggered by start button
         self.window.mainloop()
-    
+
     def get_coords(self) -> Coords:
         """Get current coordinates."""
         return self.coordinate_service.get_coordinates()
-    
+
     def get_timers(self) -> Tuple[int, int, float, float]:
         """Get current timer values."""
         return (
@@ -461,12 +450,12 @@ class RefactoredSessionUI:
             self._default_cooldown,  # Use constructor parameter
             float(self.get_ready_delay_var.get()),
         )
-    
+
     @property
     def prompts(self) -> List[str]:
         """Get prompts with thread safety."""
         return self._prompts.copy()  # Return a copy to prevent modification
-    
+
     @prompts.setter
     def prompts(self, value: List[str]) -> None:
         """Set prompts with thread safety."""
@@ -475,39 +464,39 @@ class RefactoredSessionUI:
             self.prompt_count = len(self._prompts)
         else:
             print("Warning: Cannot modify prompts during automation")
-    
+
     def get_prompts_safe(self) -> List[str]:
         """Get prompts with thread safety."""
         return self._prompts.copy()  # Return a copy to prevent modification
-    
+
     def get_current_prompt(self) -> Optional[str]:
         """Get current prompt text."""
         return self.state_manager.get_current_prompt()
-    
+
     def get_next_prompt(self) -> Optional[str]:
         """Get next prompt text."""
         return self.state_manager.get_next_prompt()
-    
+
     def advance_prompt_index(self) -> None:
         """Advance to next prompt."""
         self.state_manager.advance_prompt_index()
-    
+
     def set_prompt_index(self, index: int) -> bool:
         """Set prompt index."""
         return self.state_manager.set_prompt_index(index)
-    
+
     def update_prompt_index_from_automation(self, index: int) -> None:
         """Update prompt index from automation (thread-safe)."""
         self.state_manager.update_prompt_index_from_automation(index)
-    
+
     def refresh_automation_display(self) -> None:
         """Refresh the automation display state after a cycle completes."""
         self.state_manager.refresh_automation_display()
-    
+
     def detect_and_fix_stuck_ui(self) -> bool:
         """Detect and fix stuck UI state."""
         return self.state_manager.detect_and_fix_stuck_ui()
-    
+
     def countdown(
         self,
         seconds: float,
@@ -524,47 +513,47 @@ class RefactoredSessionUI:
             last_text,
             on_complete,
         )
-    
+
     def bring_to_front(self) -> None:
         """Bring window to front."""
         self.window_service.bring_to_front()
-    
+
     def close(self) -> None:
         """Close the application."""
         # Save prompts if modified
         self._save_prompts_on_exit()
-        
+
         # Stop services in proper order
         try:
             if hasattr(self, "event_service"):
                 self.event_service.stop()
         except Exception as e:
             print(f"Error stopping event service: {e}")
-        
+
         try:
             if hasattr(self, "coordinate_service"):
                 self.coordinate_service.stop_capture()
         except Exception as e:
             print(f"Error stopping coordinate service: {e}")
-        
+
         try:
             if hasattr(self, "countdown_service"):
                 self.countdown_service.stop()
         except Exception as e:
             print(f"Error stopping countdown service: {e}")
-        
+
         # Cleanup memory pools
         try:
             cleanup_memory_pools()
         except Exception:
             pass  # Ignore cleanup errors
-        
+
         # Close window
         try:
             self.window_service.close()
         except Exception as e:
             print(f"Error closing window: {e}")
-    
+
     def _save_prompts_on_exit(self) -> None:
         """Save prompts if they have been modified."""
         if self.prompt_io.is_prompts_modified() and self.prompt_io.get_current_file_path():
@@ -579,43 +568,41 @@ class RefactoredSessionUI:
                     print(f"Failed to save modified prompts to: {self.prompt_io.get_current_file_path()}")
             except Exception as e:
                 print(f"Error saving prompts on exit: {e}")
-    
+
     def save_prompts_manually(self, file_path: Optional[str] = None) -> bool:
         """Manually save prompts to a file."""
         return self.prompt_io.save_prompts_manually(file_path)
-    
+
     def is_prompts_modified(self) -> bool:
         """Check if prompts have been modified since last save."""
         return self.prompt_io.is_prompts_modified()
-    
+
     def get_current_file_path(self) -> str:
         """Get the current file path."""
         return self.prompt_io.get_current_file_path()
-    
+
     def _browse_prompt_file(self) -> None:
         """Open file browser to select one or more prompt files."""
         self.prompt_io.browse_prompt_file()
-    
-    def _validate_prompt_list(self) -> None:
-        """Validate and load the prompt list from one or more files."""
-        self.prompt_io.validate_prompt_list()
-    
+
+    # Removed duplicate validation - use prompt_io.validate_prompt_list() directly
+
     def _start_capture(self, key: str) -> None:
         """Start coordinate capture for a target."""
         # Set callback first
         self.coordinate_service.set_callback(self._on_coordinate_captured)
-        
+
         # Start capture
         self.coordinate_service.start_capture(key)
-        
+
         # Minimize window
         self.window_service.minimize()
-    
+
     def _on_coordinate_captured(self, key: str, coord: Tuple[int, int]) -> None:
         """Handle coordinate capture completion."""
         # Restore window
         self.window_service.restore()
-        
+
         # Immediately update the coordinate display for this key
         coord_label = getattr(self, f"{key}_coord_label", None)
         if coord_label:
@@ -624,9 +611,9 @@ class RefactoredSessionUI:
             logger.debug("Updated %s coordinate display to: %s", key, new_text)
         else:
             logger.warning("No coordinate label found for %s", key)
-        
+
         logger.info("Captured coordinate for %s: %s", key, coord)
-    
+
     def _on_key_up(self) -> None:
         """Handle up key."""
         if hasattr(self, "session_controller") and not self.session_controller.is_started():
@@ -635,7 +622,7 @@ class RefactoredSessionUI:
                 self.current_prompt_index = new_index
                 if hasattr(self, "prompt_list_service"):
                     self.prompt_list_service.set_current_prompt_index(new_index)
-    
+
     def _on_key_down(self) -> None:
         """Handle down key."""
         if hasattr(self, "session_controller") and not self.session_controller.is_started():
@@ -644,12 +631,12 @@ class RefactoredSessionUI:
                 self.current_prompt_index = new_index
                 if hasattr(self, "prompt_list_service"):
                     self.prompt_list_service.set_current_prompt_index(new_index)
-    
+
     def _on_key_enter(self) -> None:
         """Handle enter key."""
         if hasattr(self, "session_controller") and not self.session_controller.is_started():
             self._on_prompt_click(self.current_prompt_index)
-    
+
     def _on_start(self) -> None:
         """Handle start button click."""
         if hasattr(self, "session_controller"):
@@ -659,28 +646,28 @@ class RefactoredSessionUI:
             else:
                 self.session_controller.stop_automation()
                 self.state_manager.reset_start_button()
-    
+
     def _on_stop(self) -> None:
         """Handle stop button click."""
         if hasattr(self, "session_controller"):
             self.session_controller.stop_automation()
             self.state_manager.reset_start_button()
-    
+
     def _on_cancel(self) -> None:
         """Handle cancel button click."""
         if hasattr(self, "session_controller"):
             self.session_controller.cancel_automation()
-    
+
     def _on_next(self) -> None:
         """Handle next button click."""
         if hasattr(self, "session_controller"):
             self.session_controller.next_prompt()
-    
+
     def _toggle_pause(self) -> None:
         """Handle pause/resume button click."""
         if hasattr(self, "session_controller"):
             self.session_controller.toggle_pause()
-    
+
     def _update_path_entry_border(self, color: str = None) -> None:
         """Update path entry border color based on modification state or directly."""
         self.prompt_io._update_path_entry_border(color)

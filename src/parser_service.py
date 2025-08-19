@@ -185,7 +185,7 @@ class ParserService:
                             cleaned_section = section.strip()
                             if cleaned_section:
                                 cleaned_section = self._remove_common_prefixes(
-                                    cleaned_section
+                                    cleaned_section,
                                 )
                                 if cleaned_section:
                                     prompts.append(cleaned_section)

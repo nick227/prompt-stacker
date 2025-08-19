@@ -140,7 +140,7 @@ class EventService:
         self.on_key_down = on_down
         self.on_key_enter = on_enter
 
-        # TEMPORARY FIX: Disable keyboard listener to prevent hanging
+        # Keyboard listener disabled to prevent hanging
         # Start keyboard listener only when navigation is set up
         # if not self._keyboard_listener_started:
         #     self._start_keyboard_listener()
@@ -165,7 +165,7 @@ class EventService:
         self.shortcut_modifier = modifier
         self.shortcut_callback = callback
 
-        # TEMPORARY FIX: Disable keyboard listener to prevent hanging
+        # Keyboard listener disabled to prevent hanging
         # Start keyboard listener if not already started
         # if not self._keyboard_listener_started:
         #     self._start_keyboard_listener()

@@ -13,30 +13,35 @@ The application uses a service-oriented architecture with modular components:
 
 """
 
-import sys
 import os
+import sys
 import traceback
 from pathlib import Path
-from src.error_handler import handle_error, log_info
-from src.performance import start_performance_monitoring, stop_performance_monitoring, cleanup_memory
+
 from src.config import config
+from src.error_handler import handle_error, log_info
+from src.performance import (
+    cleanup_memory,
+    start_performance_monitoring,
+    stop_performance_monitoring,
+)
 
 
 def validate_environment() -> dict:
     """Validate the runtime environment before starting."""
     issues = []
     warnings = []
-    
+
     # Check Python version
     if sys.version_info < (3, 8):
         issues.append("Python 3.8 or higher required")
-    
+
     # Check required directories
     required_dirs = ["src", "prompt_lists", "data"]
     for dir_name in required_dirs:
         if not Path(dir_name).exists():
             issues.append(f"Required directory '{dir_name}' not found")
-    
+
     # Check for write permissions
     try:
         test_file = Path("data/test_write.tmp")
@@ -45,7 +50,7 @@ def validate_environment() -> dict:
         test_file.unlink()
     except Exception as e:
         warnings.append(f"Write permission issues: {e}")
-    
+
     # Check for display (for GUI)
     try:
         import tkinter
@@ -53,11 +58,11 @@ def validate_environment() -> dict:
         root.destroy()
     except Exception as e:
         issues.append(f"GUI display not available: {e}")
-    
+
     return {
         "valid": len(issues) == 0,
         "issues": issues,
-        "warnings": warnings
+        "warnings": warnings,
     }
 
 
@@ -67,11 +72,11 @@ def cleanup_previous_sessions():
         # Kill any existing Python processes that might be running this app
         import psutil
         current_pid = os.getpid()
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        for proc in psutil.process_iter(["pid", "name", "cmdline"]):
             try:
-                if (proc.info['name'] == 'python.exe' and 
-                    proc.info['pid'] != current_pid and
-                    any('cursor.py' in cmd for cmd in proc.info['cmdline'] if cmd)):
+                if (proc.info["name"] == "python.exe" and
+                    proc.info["pid"] != current_pid and
+                    any("cursor.py" in cmd for cmd in proc.info["cmdline"] if cmd)):
                     proc.terminate()
                     log_info(f"Terminated previous session: PID {proc.info['pid']}")
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -83,22 +88,22 @@ def cleanup_previous_sessions():
 def main():
     """Main entry point with enhanced error handling and performance monitoring."""
     try:
-        # BULLETPROOF IMPROVEMENT: Environment validation
+        # Environment validation
         env_check = validate_environment()
         if not env_check["valid"]:
             print("❌ Environment validation failed:")
             for issue in env_check["issues"]:
                 print(f"  - {issue}")
             return 1
-        
+
         if env_check["warnings"]:
             print("⚠️  Environment warnings:")
             for warning in env_check["warnings"]:
                 print(f"  - {warning}")
-        
-        # BULLETPROOF IMPROVEMENT: Clean up previous sessions
+
+        # Clean up previous sessions
         cleanup_previous_sessions()
-        
+
         # Validate configuration
         validation = config.validate_config()
         if not validation["valid"]:
@@ -106,12 +111,12 @@ def main():
             for error in validation["errors"]:
                 print(f"  - {error}")
             return 1
-        
+
         # Start performance monitoring
         start_performance_monitoring()
         log_info("Application started with performance monitoring")
-        
-        # BULLETPROOF IMPROVEMENT: UI initialization with retry logic
+
+        # UI initialization with retry logic
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -124,12 +129,12 @@ def main():
                 log_info(f"UI initialization attempt {attempt + 1} failed: {e}")
                 import time
                 time.sleep(1)  # Brief delay before retry
-        
-        # BULLETPROOF IMPROVEMENT: Wait for UI to be fully ready
+
+        # Wait for UI to be ready
         ui.wait_for_start()
-        
+
         return 0
-        
+
     except KeyboardInterrupt:
         log_info("Application interrupted by user")
         return 0

@@ -77,7 +77,7 @@ class MemoryPool:
             Object from pool or newly created
         """
         if pool_name not in self.pools:
-            raise ValueError("Pool '{}' not registered".format(pool_name))
+            raise ValueError(f"Pool '{pool_name}' not registered")
 
         lock = self.pool_locks[pool_name]
         pool = self.pools[pool_name]

@@ -75,23 +75,21 @@ class CountdownService:
 
     def __init__(self, ui_widgets: Dict[str, Any]):
         """
-        Initialize the countdown service.
-
-        Args:
-            ui_widgets: Dictionary containing UI widgets needed for countdown
+        SIMPLIFIED: Initialize the countdown service with minimal complexity.
         """
         self.ui_widgets = ui_widgets
-        self._lock = threading.Lock()  # Single lock for all state
+        
+        # SIMPLIFIED: Single lock for all state
+        self._lock = threading.Lock()
 
-        # State variables
+        # SIMPLIFIED: Basic state variables
         self._active = False
         self._paused = False
         self._cancelled = False
         self._thread = None
-        self._stop_event = threading.Event()
-        self._completion_event = threading.Event()
+        self._completion_event = threading.Event()  # Keep only essential event
 
-        # UI widget references (progress bar removed)
+        # UI widget references
         self.time_label = ui_widgets.get("time_label")
         self.pause_btn = ui_widgets.get("pause_btn")
         self.current_box = ui_widgets.get("current_box")
@@ -169,8 +167,7 @@ class CountdownService:
             self._cancelled = False
             self.on_countdown_complete = on_complete
 
-        # Clear events
-        self._stop_event.clear()
+        # Clear completion event
         self._completion_event.clear()
 
         # Start countdown thread
@@ -191,12 +188,11 @@ class CountdownService:
         return result
 
     def stop(self) -> None:
-        """Stop the countdown immediately."""
+        """SIMPLIFIED: Stop the countdown immediately."""
         with self._lock:
             self._active = False
             self._cancelled = True
 
-        self._stop_event.set()
         self._completion_event.set()
 
         if self._thread and self._thread.is_alive():
@@ -247,21 +243,23 @@ class CountdownService:
         return self.cancelled
 
     def force_reset(self) -> None:
-        """Force reset the countdown service."""
-        logger.info("Force resetting countdown service")
-        self.stop()
+        """SIMPLIFIED: Basic reset - stop the countdown and reset state."""
+        logger.info("Resetting countdown service")
         with self._lock:
             self._active = False
-            self._paused = False
             self._cancelled = False
+            self._paused = False
+        self._completion_event.set()
+        
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+            self._thread = None
 
     def force_complete(self) -> None:
-        """Force complete the countdown."""
-        logger.info("Force completing countdown")
+        """SIMPLIFIED: Basic completion - just signal completion."""
+        logger.info("Completing countdown")
         with self._lock:
             self._active = False
-            self._paused = False
-            self._cancelled = False
         self._completion_event.set()
 
     def _get_final_state(self) -> Dict[str, Any]:
@@ -307,8 +305,8 @@ class CountdownService:
                     else:
                         display_text = str(int(round(remaining)))
                     self.time_label.configure(text=display_text)
-                except Exception as e:
-                    logger.warning(f"Failed to update time_label: {e}")
+                except AttributeError:
+                    pass  # No time_label to update
 
             # Progress bar removed - no longer needed
 
@@ -327,46 +325,38 @@ class CountdownService:
                             fg_color=BUTTON_BG,
                             hover_color=BUTTON_HOVER,
                         )
-                except Exception as e:
-                    logger.warning(f"Failed to update pause button: {e}")
+                except AttributeError:
+                    pass  # No pause button to update
 
             # Update text boxes
             if self.current_box:
                 try:
                     safe_text = str(text) if text is not None else ""
                     self._set_textbox(self.current_box, safe_text)
-                except Exception as e:
-                    logger.warning(f"Failed to update current_box: {e}")
+                except AttributeError:
+                    pass  # No current_box to update
 
             if self.next_box:
                 try:
                     safe_next_text = str(next_text) if next_text is not None else ""
                     next_text_with_prefix = f"Next: {safe_next_text}"
                     self._set_textbox(self.next_box, next_text_with_prefix)
-                except Exception as e:
-                    logger.warning(f"Failed to update next_box: {e}")
-
+                except AttributeError:
+                    pass  # No next_box to update
         except Exception as e:
-            logger.error(f"Error in display update: {e}")
+            logger.warning(f"Error updating display: {e}")
 
     def _set_textbox(self, textbox, text: str) -> None:
-        """Safely set text in a textbox widget."""
-        try:
-            if hasattr(textbox, 'delete') and hasattr(textbox, 'insert'):
-                textbox.delete("1.0", tkinter.END)
-                textbox.insert("1.0", text)
-            elif hasattr(textbox, 'configure'):
-                textbox.configure(text=text)
-        except Exception as e:
-            logger.warning(f"Failed to set textbox content: {e}")
+        """Set text in a textbox widget."""
+        if hasattr(textbox, 'delete') and hasattr(textbox, 'insert'):
+            textbox.delete("1.0", tkinter.END)
+            textbox.insert("1.0", text)
+        elif hasattr(textbox, 'configure'):
+            textbox.configure(text=text)
 
     def _schedule_ui_update(self, remaining: float, total: float, text: Optional[str], next_text: Optional[str]) -> None:
-        """Schedule UI update on main thread."""
-        try:
-            # For now, update directly - in a real app you might use after() for tkinter
-            self._update_display(remaining, total, text, next_text)
-        except Exception as e:
-            logger.warning(f"Error scheduling UI update: {e}")
+        """Update UI display directly."""
+        self._update_display(remaining, total, text, next_text)
 
     def _countdown_loop(
         self,
@@ -397,12 +387,11 @@ class CountdownService:
             # Update initial display
             self._update_display(remaining, total, text, next_text)
 
-            # Main countdown loop
+            # SIMPLIFIED: Main countdown loop
             while (
                 remaining > 0
                 and self.countdown_active
                 and not self.cancelled
-                and not self._stop_event.is_set()
             ):
                 # Handle pause state - CRITICAL FIX: Don't decrement time when paused
                 if self.paused:
@@ -430,13 +419,13 @@ class CountdownService:
                 # Update display
                 self._schedule_ui_update(remaining, total, text, next_text)
 
-                # If we just unpaused, add a small delay to make the transition visible
+                # SIMPLIFIED: Centralized pause/resume logic
                 if was_paused:
-                    # Small delay to show the unpaused state before decrementing
-                    time.sleep(0.5)
+                    # Brief pause to show unpaused state
+                    time.sleep(0.2)
                     remaining -= 1.0
                 else:
-                    # Normal countdown - wait then decrement
+                    # Normal countdown
                     time.sleep(1.0)
                     remaining -= 1.0
 
