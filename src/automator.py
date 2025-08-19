@@ -32,12 +32,25 @@ log_dir = Path.home() / "prompt_stacker_logs"
 log_dir.mkdir(exist_ok=True)
 log_file = log_dir / "automation.log"
 
+# Create a custom stream handler that handles Unicode properly
+class UnicodeStreamHandler(logging.StreamHandler):
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            # Write with error handling for Unicode
+            stream.buffer.write(msg.encode('utf-8'))
+            stream.buffer.write(b'\n')
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler(),
+        logging.FileHandler(log_file, encoding='utf-8'),
+        UnicodeStreamHandler(),
     ],
 )
 logger = logging.getLogger(__name__)
@@ -325,6 +338,28 @@ def perform_paste_operation(text: str) -> bool:
     return paste_success
 
 
+def sanitize_text_for_logging(text: str) -> str:
+    """Sanitize text for logging by replacing problematic Unicode characters."""
+    if not text:
+        return text
+    
+    # Replace problematic Unicode characters
+    replacements = {
+        '\u2011': '-',  # Non-breaking hyphen
+        '\u2013': '-',  # En dash
+        '\u2014': '-',  # Em dash
+        '\u2018': "'",  # Left single quotation mark
+        '\u2019': "'",  # Right single quotation mark
+        '\u201c': '"',  # Left double quotation mark
+        '\u201d': '"',  # Right double quotation mark
+    }
+    
+    for unicode_char, replacement in replacements.items():
+        text = text.replace(unicode_char, replacement)
+    
+    return text
+
+
 def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
     """Run automation for a single prompt with enhanced error handling and timeout protection."""
     logger.info(f"Starting single prompt automation for index {prompt_index}")
@@ -367,11 +402,16 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
     # Get the text for this prompt
     text = initial_prompts[prompt_index]
     logger.info(
-        f"Processing prompt {prompt_index + 1}/{len(initial_prompts)}: {text[:50]}..."
+        f"Processing prompt {prompt_index + 1}/{len(initial_prompts)}: {sanitize_text_for_logging(text[:50])}..."
     )
 
     # Define last_text for single prompt automation
     last_text = None
+
+    # CRITICAL FIX: Check if stop was requested
+    if hasattr(ui, 'session_controller') and ui.session_controller.is_stop_requested():
+        logger.info("Single prompt automation stopped - stop was requested")
+        return False
 
     # Get ready pause with dialog to front
     logger.info(f"Starting get ready countdown for {initial_timers[3]} seconds")
@@ -405,7 +445,7 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
         logger.info("Single prompt automation resumed after get ready countdown")
 
     # Process automation with timeout protection
-    logger.info(f"Copying text to clipboard: {text[:50]}...")
+    logger.info(f"Copying text to clipboard: {sanitize_text_for_logging(text[:50])}...")
     clipboard_success = paste_text_safely(text)
     if not clipboard_success:
         logger.error("Failed to copy text to clipboard")
@@ -598,6 +638,10 @@ def run_automation_with_ui(ui) -> bool:
     
     try:
         while index < len(initial_prompts):
+            # CRITICAL FIX: Check if stop was requested
+            if hasattr(ui, 'session_controller') and ui.session_controller.is_stop_requested():
+                logger.info("Automation stopped - stop was requested")
+                return False
             # BULLETPROOF IMPROVEMENT: Validate state consistency
             try:
                 current_prompts = ui.get_prompts_safe()
@@ -646,7 +690,7 @@ def run_automation_with_ui(ui) -> bool:
                     index += 1
                     continue
                     
-                logger.info(f"Processing prompt {index + 1}/{len(initial_prompts)}: {text[:50]}...")
+                logger.info(f"Processing prompt {index + 1}/{len(initial_prompts)}: {sanitize_text_for_logging(text[:50])}...")
             except IndexError:
                 logger.error(f"Index {index} out of range for prompts list")
                 return False
@@ -716,7 +760,7 @@ def run_automation_with_ui(ui) -> bool:
                 index = current_ui_index
                 continue
 
-            logger.info(f"Copying text to clipboard: {text[:50]}...")
+            logger.info(f"Copying text to clipboard: {sanitize_text_for_logging(text[:50])}...")
             clipboard_success = paste_text_safely(text)
             if not clipboard_success:
                 logger.error("Failed to copy text to clipboard")

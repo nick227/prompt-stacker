@@ -301,7 +301,12 @@ class CountdownService:
             # Update time display
             if self.time_label:
                 try:
-                    self.time_label.configure(text=str(int(round(remaining))))
+                    # Show paused indicator when paused
+                    if self.paused:
+                        display_text = f"*{int(round(remaining))}"
+                    else:
+                        display_text = str(int(round(remaining)))
+                    self.time_label.configure(text=display_text)
                 except Exception as e:
                     logger.warning(f"Failed to update time_label: {e}")
 
@@ -384,7 +389,8 @@ class CountdownService:
             total = max(0.0, float(seconds))
             remaining = total
             start_time = time.time()
-            max_duration = total + 60  # Allow 1 minute extra for safety
+            pause_start_time = None  # Track when pause started
+            total_pause_time = 0.0   # Track total time spent paused
 
             logger.info(f"Countdown loop started for {total}s")
 
@@ -398,24 +404,41 @@ class CountdownService:
                 and not self.cancelled
                 and not self._stop_event.is_set()
             ):
-                # Check for timeout
-                if time.time() - start_time > max_duration:
-                    logger.error("Countdown timeout reached")
-                    break
-
-                # Handle pause state
+                # Handle pause state - CRITICAL FIX: Don't decrement time when paused
                 if self.paused:
+                    # Track pause start time
+                    if pause_start_time is None:
+                        pause_start_time = time.time()
+                    
+                    # Update display to show paused state
+                    self._schedule_ui_update(remaining, total, text, next_text)
                     time.sleep(WAIT_TICK)
                     continue
+                else:
+                    # Not paused - update total pause time if we were paused
+                    was_paused = pause_start_time is not None
+                    if pause_start_time is not None:
+                        total_pause_time += time.time() - pause_start_time
+                        pause_start_time = None
+
+                # Check for timeout based on ACTUAL countdown time (excluding pause time)
+                actual_elapsed = time.time() - start_time - total_pause_time
+                if actual_elapsed > total + 60:  # Allow 1 minute extra for safety
+                    logger.error("Countdown timeout reached")
+                    break
 
                 # Update display
                 self._schedule_ui_update(remaining, total, text, next_text)
 
-                # Wait for next tick
-                time.sleep(1.0)
-
-                # Decrement remaining time
-                remaining -= 1.0
+                # If we just unpaused, add a small delay to make the transition visible
+                if was_paused:
+                    # Small delay to show the unpaused state before decrementing
+                    time.sleep(0.5)
+                    remaining -= 1.0
+                else:
+                    # Normal countdown - wait then decrement
+                    time.sleep(1.0)
+                    remaining -= 1.0
 
             # Countdown completed
             with self._lock:

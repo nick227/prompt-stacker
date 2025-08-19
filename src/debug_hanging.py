@@ -22,7 +22,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("debug_hanging.log"),
+        logging.FileHandler("debug_hanging.log", encoding='utf-8'),
         logging.StreamHandler(),
     ],
 )

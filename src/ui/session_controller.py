@@ -46,6 +46,8 @@ class SessionController:
         self._started = False
         self._automation_lock = threading.RLock()
         self._prompts_locked = False
+        self._automation_thread = None  # Track the automation thread
+        self._stop_requested = False  # Flag to request stop
         
     def start_automation(self) -> bool:
         """
@@ -82,8 +84,15 @@ class SessionController:
     def stop_automation(self) -> None:
         """Stop the automation process."""
         with self._automation_lock:
+            # CRITICAL FIX: Stop the automation thread if it's running
+            if self._automation_thread and self._automation_thread.is_alive():
+                logger.info("Automation stopped via stop button")
+                self._stop_requested = True  # Signal the thread to stop
+            
             self._reset_automation_state()
             self._stop_countdown_if_active()
+            self._automation_thread = None
+            self._stop_requested = False
     
     def cancel_automation(self) -> None:
         """Cancel the automation process and close application."""
@@ -122,8 +131,12 @@ class SessionController:
                     )
                 print(f"Next button: Advanced to prompt {self.ui.current_prompt_index + 1}")
                 
-                # Start automation cycle for the new prompt
-                self._start_prompt_automation()
+                # CRITICAL FIX: Only start automation cycle if NOT paused
+                if hasattr(self.ui, "countdown_service") and not self.ui.countdown_service.is_paused():
+                    # Start automation cycle for the new prompt
+                    self._start_prompt_automation()
+                else:
+                    print("Next button: Automation paused - not starting new cycle")
             else:
                 print("Next button: Already at last prompt")
     
@@ -139,6 +152,10 @@ class SessionController:
     def are_prompts_locked(self) -> bool:
         """Check if prompts are locked during automation."""
         return self._prompts_locked
+    
+    def is_stop_requested(self) -> bool:
+        """Check if stop was requested."""
+        return self._stop_requested
     
     def _validate_start_prerequisites(self) -> bool:
         """Validate prerequisites before starting automation."""
@@ -178,13 +195,13 @@ class SessionController:
             self.ui.coordinate_service.save_coordinates()
             
             # Run automation in a separate thread
-            automation_thread = threading.Thread(
+            self._automation_thread = threading.Thread(
                 target=run_automation_with_ui,
                 args=(self.ui,),
                 name="AutomationThread"
             )
-            automation_thread.daemon = True
-            automation_thread.start()
+            self._automation_thread.daemon = True
+            self._automation_thread.start()
             
             logger.info("Automation thread started successfully")
             

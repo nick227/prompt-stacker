@@ -73,7 +73,9 @@ class PromptIO:
                 return
             
             # BULLETPROOF IMPROVEMENT: Check for path injection attempts
-            if any(char in path_input for char in ['..', '\\', '/', ':', '*', '?', '"', '<', '>', '|']):
+            # Allow legitimate Windows paths but block dangerous patterns
+            dangerous_patterns = ['..', '*', '?', '"', '<', '>', '|']
+            if any(pattern in path_input for pattern in dangerous_patterns):
                 logger.warning(f"Potentially unsafe path detected: {path_input}")
                 self._show_error_border("Invalid path characters detected")
                 return
@@ -449,35 +451,20 @@ class PromptIO:
             logger.error(f"Error in _load_prompts_from_multiple_files: {e}")
             return False
     
-    def _load_prompts_from_file(self, file_path: str) -> bool:
-        """Load prompts from a single file and set up persistence tracking."""
+    def _load_prompts_from_file(self, file_path: str) -> List[str]:
+        """Load prompts from a single file and return the list."""
         try:
             success, result = self.file_service.parse_prompt_list(file_path)
             
             if success and isinstance(result, list):
-                self.ui.prompts = result
-                self.ui.prompt_count = len(result)
-                self.ui.current_prompt_index = 0
-                
-                # Update inline prompt editor service
-                if hasattr(self.ui, "prompt_list_service"):
-                    self.ui.prompt_list_service.set_prompts(result)
-                
-                # Set up persistence tracking
-                self._current_file_path = file_path
-                self._original_prompts_hash = hash(tuple(result))
-                self._prompts_modified = False
-                
-                # Update UI
-                self._update_path_entry_border()
-                self._update_preview(result[0] if result else "")
-                
-                return True
-            return False
+                return result
+            else:
+                logger.warning(f"Failed to load prompts from {file_path}: {result}")
+                return []
             
         except Exception as e:
-            print(f"Error loading prompts from file: {e}")
-            return False
+            logger.error(f"Error loading prompts from file {file_path}: {e}")
+            return []
     
     def _load_default_prompts(self) -> None:
         """Load default prompts from the bundled prompt_list.py."""
