@@ -162,14 +162,15 @@ class ControlBuilder(BaseUIBuilder):
         timer_frame = ctk.CTkFrame(countdown_frame, fg_color="transparent")
         timer_frame.pack(side="bottom", anchor="e")
 
-        # Countdown timer
-        self.ui.time_label = ctk.CTkLabel(
+        # SIMPLE FIX: Create a compact timer display for control section
+        # This avoids conflicts with the main countdown display
+        self.ui.control_timer_label = ctk.CTkLabel(
             timer_frame,
             text="0",
-            font=("Segoe UI Variable", 24, "bold"),
+            font=("Segoe UI Variable", 20, "bold"),
             text_color=COLOR_ACCENT,
         )
-        self.ui.time_label.pack(side="left")
+        self.ui.control_timer_label.pack(side="left")
 
         # Seconds label
         ctk.CTkLabel(

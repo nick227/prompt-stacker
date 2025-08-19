@@ -58,6 +58,10 @@ class SessionController:
             if self._started:
                 logger.warning("Automation already started")
                 return False
+            
+            # CRITICAL FIX: Ensure any existing countdown is stopped before starting
+            if hasattr(self.ui, "countdown_service"):
+                self.ui.countdown_service.force_reset()
                 
             # Validate configuration before starting
             if not self._validate_start_prerequisites():

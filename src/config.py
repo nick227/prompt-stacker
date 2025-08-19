@@ -375,75 +375,152 @@ def get_app_config() -> AppConfig:
 # They should be gradually replaced with config.theme.* and config.ui.*
 
 # Colors
-COLOR_BG = config.theme.bg
-COLOR_SURFACE = config.theme.surface
-COLOR_SURFACE_ALT = config.theme.surface_alt
-COLOR_BORDER = config.theme.border
-COLOR_PRIMARY = config.theme.primary
-COLOR_PRIMARY_HOVER = config.theme.primary_hover
-COLOR_TEXT = config.theme.text
-WHITE_COLOR_TEXT = config.theme.white_text
-COLOR_TEXT_MUTED = config.theme.text_muted
-COLOR_ACCENT = config.theme.accent
-COLOR_WARNING = config.theme.warning
-COLOR_ERROR = config.theme.error
-COLOR_SUCCESS = config.theme.success
+try:
+    COLOR_BG = config.theme.bg
+    COLOR_SURFACE = config.theme.surface
+    COLOR_SURFACE_ALT = config.theme.surface_alt
+    COLOR_BORDER = config.theme.border
+    COLOR_PRIMARY = config.theme.primary
+    COLOR_PRIMARY_HOVER = config.theme.primary_hover
+    COLOR_TEXT = config.theme.text
+    WHITE_COLOR_TEXT = config.theme.white_text
+    COLOR_TEXT_MUTED = config.theme.text_muted
+    COLOR_ACCENT = config.theme.accent
+    COLOR_WARNING = config.theme.warning
+    COLOR_ERROR = config.theme.error
+    COLOR_SUCCESS = config.theme.success
+except AttributeError:
+    # Fallback values if config is not fully initialized
+    COLOR_BG = "#272822"
+    COLOR_SURFACE = "#3E3D32"
+    COLOR_SURFACE_ALT = "#2F2F2F"
+    COLOR_BORDER = "#75715E"
+    COLOR_PRIMARY = "#F92672"
+    COLOR_PRIMARY_HOVER = "#FD5FF0"
+    COLOR_TEXT = "#F8F8F2"
+    WHITE_COLOR_TEXT = "#FFFFFF"
+    COLOR_TEXT_MUTED = "#75715E"
+    COLOR_ACCENT = "#A6E22E"
+    COLOR_WARNING = "#E6DB74"
+    COLOR_ERROR = "#F92672"
+    COLOR_SUCCESS = "#A6E22E"
+
 COLOR_MODIFIED = "#3B82F6"  # Blue color for modified files
 
 # Button colors
-BUTTON_BG = config.theme.button_bg
-BUTTON_HOVER = config.theme.button_hover
-BUTTON_TEXT = config.theme.button_text
-BUTTON_START_ACTIVE = config.theme.button_start_active
-BUTTON_START_ACTIVE_HOVER = config.theme.button_start_active_hover
-BUTTON_STOP_ACTIVE = config.theme.button_stop_active
-BUTTON_STOP_ACTIVE_HOVER = config.theme.button_stop_active_hover
-BUTTON_START_INACTIVE = config.theme.button_start_inactive
-BUTTON_PAUSE_ACTIVE = config.theme.button_pause_active
-BUTTON_PAUSE_ACTIVE_HOVER = config.theme.button_pause_active_hover
+try:
+    BUTTON_BG = config.theme.button_bg
+    BUTTON_HOVER = config.theme.button_hover
+    BUTTON_TEXT = config.theme.button_text
+    BUTTON_START_ACTIVE = config.theme.button_start_active
+    BUTTON_START_ACTIVE_HOVER = config.theme.button_start_active_hover
+    BUTTON_STOP_ACTIVE = config.theme.button_stop_active
+    BUTTON_STOP_ACTIVE_HOVER = config.theme.button_stop_active_hover
+    BUTTON_START_INACTIVE = config.theme.button_start_inactive
+    BUTTON_PAUSE_ACTIVE = config.theme.button_pause_active
+    BUTTON_PAUSE_ACTIVE_HOVER = config.theme.button_pause_active_hover
+except AttributeError:
+    # Fallback values if config is not fully initialized
+    BUTTON_BG = "#2F2F2F"
+    BUTTON_HOVER = "#1f1f1f"
+    BUTTON_TEXT = "#FFFFFF"
+    BUTTON_START_ACTIVE = "#58a807"
+    BUTTON_START_ACTIVE_HOVER = "#58a807"
+    BUTTON_STOP_ACTIVE = "#910d0d"
+    BUTTON_STOP_ACTIVE_HOVER = "#910d0d"
+    BUTTON_START_INACTIVE = "#75715E"
+    BUTTON_PAUSE_ACTIVE = "#521559"
+    BUTTON_PAUSE_ACTIVE_HOVER = "#2F2F2F"
 
 # Prompt colors
-PROMPT_CURRENT_BG = config.theme.prompt_current_bg
-PROMPT_CURRENT_TEXT = config.theme.prompt_current_text
-PROMPT_STANDARD_BG = config.theme.prompt_standard_bg
-PROMPT_STANDARD_TEXT = config.theme.prompt_standard_text
+try:
+    PROMPT_CURRENT_BG = config.theme.prompt_current_bg
+    PROMPT_CURRENT_TEXT = config.theme.prompt_current_text
+    PROMPT_STANDARD_BG = config.theme.prompt_standard_bg
+    PROMPT_STANDARD_TEXT = config.theme.prompt_standard_text
+except AttributeError:
+    # Fallback values if config is not fully initialized
+    PROMPT_CURRENT_BG = "#000000"
+    PROMPT_CURRENT_TEXT = "#FFFFFF"
+    PROMPT_STANDARD_BG = "#3E3D32"
+    PROMPT_STANDARD_TEXT = "#F8F8F2"
 
 # Fonts
-FONT_H1 = config.ui.font_h1
-FONT_H2 = config.ui.font_h2
-FONT_BODY = config.ui.font_body
+try:
+    FONT_H1 = config.ui.font_h1
+    FONT_H2 = config.ui.font_h2
+    FONT_BODY = config.ui.font_body
 
-# Layout
-WINDOW_WIDTH = config.ui.window_width
-WINDOW_HEIGHT = config.ui.window_height
-WINDOW_MARGIN = config.ui.window_margin
-CARD_RADIUS = config.ui.card_radius
-SECTION_RADIUS = config.ui.section_radius
-PADDING = config.ui.padding
-GUTTER = config.ui.gutter
-BUTTON_WIDTH = config.ui.button_width
-ENTRY_WIDTH = config.ui.entry_width
-PATH_ENTRY_WIDTH = config.ui.path_entry_width
+    # Layout
+    WINDOW_WIDTH = config.ui.window_width
+    WINDOW_HEIGHT = config.ui.window_height
+    WINDOW_MARGIN = config.ui.window_margin
+    CARD_RADIUS = config.ui.card_radius
+    SECTION_RADIUS = config.ui.section_radius
+    PADDING = config.ui.padding
+    GUTTER = config.ui.gutter
+    BUTTON_WIDTH = config.ui.button_width
+    ENTRY_WIDTH = config.ui.entry_width
+    PATH_ENTRY_WIDTH = config.ui.path_entry_width
 
-# Timing
-TICK_INTERVAL = config.ui.tick_interval
-CAPTURE_DELAY = config.ui.capture_delay
-COUNTDOWN_TICK = config.ui.countdown_tick
-WAIT_TICK = config.ui.wait_tick
+    # Timing
+    TICK_INTERVAL = config.ui.tick_interval
+    CAPTURE_DELAY = config.ui.capture_delay
+    COUNTDOWN_TICK = config.ui.countdown_tick
+    WAIT_TICK = config.ui.wait_tick
+except AttributeError:
+    # Fallback values if config is not fully initialized
+    FONT_H1 = ("Segoe UI Variable", 28, "bold")
+    FONT_H2 = ("Segoe UI", 13, "bold")
+    FONT_BODY = ("Segoe UI", 12)
+
+    # Layout
+    WINDOW_WIDTH = 840
+    WINDOW_HEIGHT = 800
+    WINDOW_MARGIN = 20
+    CARD_RADIUS = 12
+    SECTION_RADIUS = 12
+    PADDING = 16
+    GUTTER = 12
+    BUTTON_WIDTH = 80
+    ENTRY_WIDTH = 80
+    PATH_ENTRY_WIDTH = 250
+
+    # Timing
+    TICK_INTERVAL = 100
+    CAPTURE_DELAY = 0.12
+    COUNTDOWN_TICK = 0.1
+    WAIT_TICK = 0.05
 
 # Button text
-BTN_START = config.theme.btn_start
-BTN_STOP = config.theme.btn_stop
-BTN_PAUSE = config.theme.btn_pause
-BTN_RESUME = config.theme.btn_resume
-BTN_NEXT = config.theme.btn_next
-BTN_RETRY = config.theme.btn_retry
-BTN_SKIP = config.theme.btn_skip
-BTN_CANCEL = config.theme.btn_cancel
+try:
+    BTN_START = config.theme.btn_start
+    BTN_STOP = config.theme.btn_stop
+    BTN_PAUSE = config.theme.btn_pause
+    BTN_RESUME = config.theme.btn_resume
+    BTN_NEXT = config.theme.btn_next
+    BTN_RETRY = config.theme.btn_retry
+    BTN_SKIP = config.theme.btn_skip
+    BTN_CANCEL = config.theme.btn_cancel
+except AttributeError:
+    # Fallback values if config is not fully initialized
+    BTN_START = "Start"
+    BTN_STOP = "Stop"
+    BTN_PAUSE = "Pause"
+    BTN_RESUME = "Resume"
+    BTN_NEXT = "Next"
+    BTN_RETRY = "Retry"
+    BTN_SKIP = "Skip"
+    BTN_CANCEL = "Cancel"
 
 # Target keys and labels
-TARGET_KEYS = config.app.target_keys
-LABELS = config.app.target_labels
+try:
+    TARGET_KEYS = config.app.target_keys
+    LABELS = config.app.target_labels
+except AttributeError:
+    # Fallback values if config is not fully initialized
+    TARGET_KEYS = ["input", "submit", "accept"]
+    LABELS = ["Input Field", "Submit Button", "Accept Button"]
 
 # Prompt state constants
 PROMPT_STATE_CURRENT = "current"

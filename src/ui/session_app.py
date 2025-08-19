@@ -32,6 +32,7 @@ try:
         CARD_RADIUS,
         COLOR_BG,
         COLOR_BORDER,
+        COLOR_ERROR,
         COLOR_MODIFIED,
         COLOR_SUCCESS,
         COLOR_SURFACE,
@@ -51,6 +52,7 @@ try:
     from ..ui_builders.configuration_builder import ConfigurationBuilder
     from ..ui_builders.content_builder import ContentBuilder
     from ..ui_builders.control_builder import ControlBuilder
+
     from ..ui_builders.prompt_list_builder import PromptListBuilder
     from ..window_service import WindowService
     from .session_controller import SessionController
@@ -75,6 +77,7 @@ except ImportError:
         CARD_RADIUS,
         COLOR_BG,
         COLOR_BORDER,
+        COLOR_ERROR,
         COLOR_MODIFIED,
         COLOR_SUCCESS,
         COLOR_SURFACE,
@@ -93,6 +96,7 @@ except ImportError:
     from ui_builders.configuration_builder import ConfigurationBuilder
     from ui_builders.content_builder import ContentBuilder
     from ui_builders.control_builder import ControlBuilder
+
     from ui_builders.prompt_list_builder import PromptListBuilder
     from window_service import WindowService
     from ui.session_controller import SessionController
@@ -209,6 +213,8 @@ class RefactoredSessionUI:
         configuration_builder = ConfigurationBuilder(self)
         configuration_builder.build_configuration_area(self.section_content)
         
+        # Countdown section removed - only using control timer
+        
         control_builder = ControlBuilder(self)
         control_builder.build_control_section(self.main_content_container)
         
@@ -317,19 +323,30 @@ class RefactoredSessionUI:
     
     def _initialize_ui_services(self) -> None:
         """Initialize UI-dependent services."""
-        # Initialize countdown service (with safe widget access)
+        # Initialize countdown service (using control timer label)
         ui_widgets = {}
-        if hasattr(self, "time_label"):
-            ui_widgets["time_label"] = self.time_label
+        if hasattr(self, "control_timer_label"):
+            ui_widgets["time_label"] = self.control_timer_label  # Use control timer as main display
         if hasattr(self, "pause_btn"):
             ui_widgets["pause_btn"] = self.pause_btn
         if hasattr(self, "current_box"):
             ui_widgets["current_box"] = self.current_box
         if hasattr(self, "next_box"):
             ui_widgets["next_box"] = self.next_box
+        # Progress bar removed - no longer needed
         
         # Always create countdown service, even if some widgets are missing
         self.countdown_service = CountdownService(ui_widgets)
+        
+        # Update countdown service with widget references
+        if hasattr(self, "control_timer_label") and self.control_timer_label:
+            self.countdown_service.time_label = self.control_timer_label  # Wire control timer as main display
+        if hasattr(self, "pause_btn") and self.pause_btn:
+            self.countdown_service.pause_btn = self.pause_btn
+        if hasattr(self, "current_box") and self.current_box:
+            self.countdown_service.current_box = self.current_box
+        if hasattr(self, "next_box") and self.next_box:
+            self.countdown_service.next_box = self.next_box
         
         # Initialize inline prompt editor service (with safe widget access)
         if hasattr(self, "prompt_list_frame"):
@@ -493,7 +510,7 @@ class RefactoredSessionUI:
     
     def countdown(
         self,
-        seconds: int,
+        seconds: float,
         text: Optional[str],
         next_text: Optional[str],
         last_text: Optional[str],

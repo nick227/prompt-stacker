@@ -6,6 +6,7 @@ health checks, and UI synchronization.
 """
 
 import logging
+import time
 from typing import Optional, Dict, Any, Callable
 
 logger = logging.getLogger(__name__)
@@ -124,128 +125,308 @@ class UIStateManager:
     
     def detect_and_fix_stuck_ui(self) -> bool:
         """
-        Detect and fix stuck UI state where display shows "Waiting..." but automation has moved on.
+        Detect and fix stuck UI states with enhanced error handling.
         
         Returns:
             True if stuck state was detected and fixed, False otherwise
         """
         try:
-            # SIMPLIFIED: Only check if countdown is inactive but UI shows "Waiting..."
-            if hasattr(self.ui, "countdown_service") and not self.ui.countdown_service.is_active():
-                if hasattr(self.ui, "current_box") and self.ui.current_box:
-                    try:
-                        current_content = self.ui.current_box.get("1.0", "end-1c").strip()
-                        if current_content == "Waiting...":
-                            print("Detected stuck UI state - fixing...")
-                            # Simple fix: update to show current prompt
-                            current_text = self.ui.prompts[self.ui.current_prompt_index] if self.ui.prompts and self.ui.current_prompt_index < len(self.ui.prompts) else ""
-                            self.ui.current_box.configure(state="normal")
-                            self.ui.current_box.delete("1.0", "end")
-                            self.ui.current_box.insert("end", current_text)
-                            self.ui.current_box.configure(state="disabled")
-                            
-                            print("Stuck UI state fixed successfully")
-                            return True
-                    except Exception as e:
-                        print(f"Error checking current box content: {e}")
+                        # SIMPLIFIED: Check for stuck countdown display (using control timer)
+            if hasattr(self.ui, "control_timer_label") and self.ui.control_timer_label:
+                try:
+                    current_text = self.ui.control_timer_label.cget("text")
+                    # Only reset if we have a clearly stuck state - be very conservative
+                    if current_text == "Waiting..." and hasattr(self.ui, "session_controller"):
+                        if self.ui.session_controller.is_started():
+                            # Check if countdown service is actually running
+                            if hasattr(self.ui, "countdown_service"):
+                                # Only consider stuck if showing "Waiting..." but not active for a while
+                                if not self.ui.countdown_service.is_active():
+                                    # Add a timestamp check to avoid false positives
+                                    if not hasattr(self, '_last_waiting_check'):
+                                        self._last_waiting_check = time.time()
+                                        return False  # Don't reset immediately
+                                    elif time.time() - self._last_waiting_check > 10:  # Only after 10+ seconds
+                                        logger.info("Detected stuck countdown display during automation - resetting")
+                                        self.ui.control_timer_label.configure(text="0")
+                                        self._last_waiting_check = time.time()
+                                        return True
+                                else:
+                                    self._last_waiting_check = time.time()  # Reset timer if active
+                        else:
+                            # Reset timer if not in "Waiting..." state
+                            if hasattr(self, '_last_waiting_check'):
+                                delattr(self, '_last_waiting_check')
+                except Exception as e:
+                    logger.warning(f"Error checking control timer label: {e}")
             
-            # CRITICAL FIX: Check for orphaned countdown threads
+            # SIMPLIFIED: Check for orphaned threads
             if hasattr(self.ui, "countdown_service"):
                 try:
-                    thread_status = self.ui.countdown_service.get_thread_status()
-                    if thread_status["thread_alive"] and not thread_status["countdown_active"]:
-                        print("Detected orphaned countdown thread - forcing cleanup")
+                    # Check if thread is alive but countdown is not active
+                    if (self.ui.countdown_service._thread and 
+                        self.ui.countdown_service._thread.is_alive() and 
+                        not self.ui.countdown_service.countdown_active):
+                        logger.info("Detected orphaned countdown thread - forcing cleanup")
                         self.ui.countdown_service.force_reset()
                         return True
                 except Exception as e:
-                    print(f"Error checking thread status: {e}")
+                    logger.warning(f"Error checking thread status: {e}")
+            
+            # BULLETPROOF IMPROVEMENT: Check for invalid prompt index
+            try:
+                if (hasattr(self.ui, "current_prompt_index") and 
+                    hasattr(self.ui, "prompts") and 
+                    self.ui.prompts):
+                    if (self.ui.current_prompt_index < 0 or 
+                        self.ui.current_prompt_index >= len(self.ui.prompts)):
+                        logger.warning(f"Invalid prompt index {self.ui.current_prompt_index} - resetting to 0")
+                        self.ui.current_prompt_index = 0
+                        if hasattr(self.ui, "prompt_list_service"):
+                            self.ui.prompt_list_service.set_current_prompt_index(0)
+                        return True
+            except Exception as e:
+                logger.warning(f"Error checking prompt index: {e}")
+            
+            # BULLETPROOF IMPROVEMENT: Check for stuck button states
+            if hasattr(self.ui, "start_btn"):
+                try:
+                    if hasattr(self.ui, "session_controller"):
+                        is_started = self.ui.session_controller.is_started()
+                        current_text = self.ui.start_btn.cget("text")
+                        
+                        # Fix button state mismatch
+                        if is_started and current_text == "Start":
+                            logger.info("Detected button state mismatch - fixing start button")
+                            self.update_start_button_to_stop()
+                            return True
+                        elif not is_started and current_text == "Stop":
+                            logger.info("Detected button state mismatch - fixing start button")
+                            self.reset_start_button()
+                            return True
+                except Exception as e:
+                    logger.warning(f"Error checking button states: {e}")
             
             return False
         except Exception as e:
-            print(f"Error in detect_and_fix_stuck_ui: {e}")
+            logger.error(f"Error in detect_and_fix_stuck_ui: {e}")
             return False
     
     def start_ui_health_check(self) -> None:
         """Start periodic UI health check to detect and fix stuck states."""
         def health_check():
             try:
+                # BULLETPROOF IMPROVEMENT: Enhanced health check with timeout
+                start_time = time.time()
+                
                 # Check for stuck UI state every 2 seconds
                 if self.detect_and_fix_stuck_ui():
-                    print("Periodic health check detected and fixed stuck UI state")
+                    logger.info("Periodic health check detected and fixed stuck UI state")
+                
+                # SIMPLIFIED: Check for memory leaks
+                if hasattr(self.ui, "countdown_service"):
+                    try:
+                        # Check if thread is alive
+                        if (self.ui.countdown_service._thread and 
+                            self.ui.countdown_service._thread.is_alive()):
+                            # Log thread info for debugging
+                            logger.debug(f"Active thread: {self.ui.countdown_service._thread.name}")
+                    except Exception as e:
+                        logger.warning(f"Error in thread status check: {e}")
+                
+                # BULLETPROOF IMPROVEMENT: Performance check
+                elapsed = time.time() - start_time
+                if elapsed > 0.1:  # Health check taking too long
+                    logger.warning(f"Health check took {elapsed:.3f}s - performance issue detected")
+                
             except Exception as e:
-                print(f"Error in periodic health check: {e}")
+                logger.error(f"Error in periodic health check: {e}")
             finally:
-                # Schedule next health check
-                if hasattr(self.ui, 'window_service') and self.ui.window_service.window:
-                    self.ui.window_service.window.after(2000, health_check)  # 2 seconds
+                # Schedule next health check with error handling
+                try:
+                    if (hasattr(self.ui, 'window_service') and 
+                        self.ui.window_service.window and 
+                        hasattr(self.ui.window_service.window, 'after')):
+                        self.ui.window_service.window.after(5000, health_check)  # 5 seconds
+                    else:
+                        logger.warning("Cannot schedule next health check - window not available")
+                except Exception as e:
+                    logger.error(f"Failed to schedule next health check: {e}")
         
-        # Start the health check
-        if hasattr(self.ui, 'window_service') and self.ui.window_service.window:
-            self.ui.window_service.window.after(2000, health_check)
+        # Start the health check with error handling
+        try:
+            if (hasattr(self.ui, 'window_service') and 
+                self.ui.window_service.window and 
+                hasattr(self.ui.window_service.window, 'after')):
+                self.ui.window_service.window.after(5000, health_check)
+                logger.info("UI health check started")
+            else:
+                logger.warning("Cannot start UI health check - window not available")
+        except Exception as e:
+            logger.error(f"Failed to start UI health check: {e}")
     
     def on_prompt_click(self, index: int) -> None:
-        """Handle prompt list click."""
-        if hasattr(self.ui, "session_controller") and not self.ui.session_controller.is_started():
-            self.ui.current_prompt_index = index
-            if hasattr(self.ui, "prompt_list_service"):
-                self.ui.prompt_list_service.set_current_prompt_index(index)
+        """Handle prompt list click with validation."""
+        try:
+            # BULLETPROOF IMPROVEMENT: Validate index
+            if not isinstance(index, int) or index < 0:
+                logger.warning(f"Invalid prompt index: {index}")
+                return
+            
+            if hasattr(self.ui, "prompts") and index >= len(self.ui.prompts):
+                logger.warning(f"Prompt index {index} out of range")
+                return
+            
+            if hasattr(self.ui, "session_controller") and not self.ui.session_controller.is_started():
+                self.ui.current_prompt_index = index
+                if hasattr(self.ui, "prompt_list_service"):
+                    self.ui.prompt_list_service.set_current_prompt_index(index)
+                logger.info(f"Prompt clicked: index {index}")
+        except Exception as e:
+            logger.error(f"Error handling prompt click: {e}")
     
     def advance_prompt_index(self) -> None:
-        """Advance to next prompt."""
-        if self.ui.current_prompt_index < len(self.ui.prompts) - 1:
-            self.ui.current_prompt_index += 1
-            if hasattr(self.ui, "prompt_list_service"):
-                self.ui.prompt_list_service.set_current_prompt_index(self.ui.current_prompt_index)
-            print(f"Automation: Advanced to prompt {self.ui.current_prompt_index + 1}")
+        """Advance to next prompt with validation."""
+        try:
+            if not hasattr(self.ui, "prompts"):
+                logger.warning("No prompts available")
+                return
+                
+            if self.ui.current_prompt_index < len(self.ui.prompts) - 1:
+                self.ui.current_prompt_index += 1
+                if hasattr(self.ui, "prompt_list_service"):
+                    self.ui.prompt_list_service.set_current_prompt_index(self.ui.current_prompt_index)
+                logger.info(f"Advanced to prompt {self.ui.current_prompt_index + 1}")
+            else:
+                logger.info("Already at last prompt")
+        except Exception as e:
+            logger.error(f"Error advancing prompt index: {e}")
     
     def set_prompt_index(self, index: int) -> bool:
-        """Set prompt index."""
-        if 0 <= index < len(self.ui.prompts):
+        """Set prompt index with validation."""
+        try:
+            # BULLETPROOF IMPROVEMENT: Comprehensive validation
+            if not isinstance(index, int):
+                logger.warning(f"Invalid index type: {type(index)}")
+                return False
+                
+            if not hasattr(self.ui, "prompts"):
+                logger.warning("No prompts available")
+                return False
+                
+            if 0 <= index < len(self.ui.prompts):
+                self.ui.current_prompt_index = index
+                if hasattr(self.ui, "prompt_list_service"):
+                    self.ui.prompt_list_service.set_current_prompt_index(index)
+                logger.info(f"Set prompt index to {index}")
+                return True
+            else:
+                logger.warning(f"Index {index} out of range [0, {len(self.ui.prompts)})")
+                return False
+        except Exception as e:
+            logger.error(f"Error setting prompt index: {e}")
+            return False
+    
+    def update_prompt_index_from_automation(self, index: int) -> None:
+        """Update prompt index from automation (thread-safe) with validation."""
+        try:
+            # BULLETPROOF IMPROVEMENT: Validate index before updating
+            if not isinstance(index, int) or index < 0:
+                logger.warning(f"Invalid automation index: {index}")
+                return
+                
+            if hasattr(self.ui, "prompts") and index >= len(self.ui.prompts):
+                logger.warning(f"Automation index {index} out of range")
+                return
+                
             self.ui.current_prompt_index = index
             if hasattr(self.ui, "prompt_list_service"):
                 self.ui.prompt_list_service.set_current_prompt_index(index)
-            return True
-        return False
-    
-    def update_prompt_index_from_automation(self, index: int) -> None:
-        """Update prompt index from automation (thread-safe)."""
-        self.ui.current_prompt_index = index
-        if hasattr(self.ui, "prompt_list_service"):
-            self.ui.prompt_list_service.set_current_prompt_index(index)
+            logger.debug(f"Automation updated prompt index to {index}")
+        except Exception as e:
+            logger.error(f"Error updating prompt index from automation: {e}")
     
     def get_current_prompt(self) -> Optional[str]:
-        """Get current prompt text."""
-        if hasattr(self.ui, "prompt_list_service"):
-            return self.ui.prompt_list_service.get_current_prompt()
-        return None
+        """Get current prompt text with validation."""
+        try:
+            if hasattr(self.ui, "prompt_list_service"):
+                return self.ui.prompt_list_service.get_current_prompt()
+            elif hasattr(self.ui, "prompts") and hasattr(self.ui, "current_prompt_index"):
+                if (0 <= self.ui.current_prompt_index < len(self.ui.prompts)):
+                    return self.ui.prompts[self.ui.current_prompt_index]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting current prompt: {e}")
+            return None
     
     def get_next_prompt(self) -> Optional[str]:
-        """Get next prompt text."""
-        if hasattr(self.ui, "prompt_list_service"):
-            return self.ui.prompt_list_service.get_next_prompt()
-        return None
+        """Get next prompt text with validation."""
+        try:
+            if hasattr(self.ui, "prompt_list_service"):
+                return self.ui.prompt_list_service.get_next_prompt()
+            elif hasattr(self.ui, "prompts") and hasattr(self.ui, "current_prompt_index"):
+                next_index = self.ui.current_prompt_index + 1
+                if next_index < len(self.ui.prompts):
+                    return self.ui.prompts[next_index]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting next prompt: {e}")
+            return None
     
     def _timers_valid(self) -> bool:
-        """Validate timer values."""
+        """Validate timer values with enhanced error handling."""
         try:
+            if not hasattr(self.ui, "main_wait_var") or not hasattr(self.ui, "get_ready_delay_var"):
+                logger.warning("Timer variables not available")
+                return False
+                
             main_wait = float(self.ui.main_wait_var.get())
             get_ready = float(self.ui.get_ready_delay_var.get())
-            return all(val >= 0 for val in [main_wait, get_ready])
-        except ValueError:
+            
+            # BULLETPROOF IMPROVEMENT: Check for reasonable values
+            if main_wait < 0 or get_ready < 0:
+                logger.warning("Negative timer values detected")
+                return False
+                
+            if main_wait > 3600 or get_ready > 3600:  # More than 1 hour
+                logger.warning("Unreasonably large timer values detected")
+                return False
+                
+            return True
+        except ValueError as e:
+            logger.warning(f"Invalid timer values: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error validating timers: {e}")
             return False
     
     def _on_start(self) -> None:
-        """Handle start button click."""
-        if hasattr(self.ui, "session_controller"):
-            if not self.ui.session_controller.is_started():
-                if self.ui.session_controller.start_automation():
-                    self.update_start_button_to_stop()
+        """Handle start button click with enhanced error handling."""
+        try:
+            if hasattr(self.ui, "session_controller"):
+                if not self.ui.session_controller.is_started():
+                    if self.ui.session_controller.start_automation():
+                        self.update_start_button_to_stop()
+                        logger.info("Automation started successfully")
+                    else:
+                        logger.warning("Failed to start automation")
+                else:
+                    self.ui.session_controller.stop_automation()
+                    self.reset_start_button()
+                    logger.info("Automation stopped")
             else:
-                self.ui.session_controller.stop_automation()
-                self.reset_start_button()
+                logger.error("Session controller not available")
+        except Exception as e:
+            logger.error(f"Error handling start button click: {e}")
     
     def _on_stop(self) -> None:
-        """Handle stop button click."""
-        if hasattr(self.ui, "session_controller"):
-            self.ui.session_controller.stop_automation()
-            self.reset_start_button()
+        """Handle stop button click with enhanced error handling."""
+        try:
+            if hasattr(self.ui, "session_controller"):
+                self.ui.session_controller.stop_automation()
+                self.reset_start_button()
+                logger.info("Automation stopped via stop button")
+            else:
+                logger.error("Session controller not available")
+        except Exception as e:
+            logger.error(f"Error handling stop button click: {e}")

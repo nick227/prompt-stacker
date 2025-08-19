@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 try:
     from ..config import (
         COLOR_BORDER,
+        COLOR_ERROR,
         COLOR_MODIFIED,
         COLOR_SUCCESS,
     )
@@ -23,6 +24,7 @@ except ImportError:
     try:
         from config import (
             COLOR_BORDER,
+            COLOR_ERROR,
             COLOR_MODIFIED,
             COLOR_SUCCESS,
         )
@@ -58,76 +60,135 @@ class PromptIO:
             self.file_service = FilePromptService() if FilePromptService else None
     
     def validate_prompt_list(self) -> None:
-        """Validate and load the prompt list from one or more files."""
-        path_input = self.ui.prompt_path_var.get().strip()
-        
-        # If path is empty, show no border and use default prompts
-        if not path_input:
-            self._current_file_path = ""
-            self._prompts_modified = False
-            self._update_path_entry_border()
-            self._load_default_prompts()
-            return
-        
-        # Split paths by semicolon and handle multiple files
-        if self._load_prompts_from_multiple_files(path_input):
-            # Successfully loaded - save path preference
-            if hasattr(self.ui, "config_service"):
-                self.ui.config_service.save_path_preference(path_input)
-        else:
-            # Failed to load - show error border
-            self._current_file_path = ""
-            self._prompts_modified = False
-            self._update_path_entry_border()
-            self._update_preview("")
+        """Validate and load the prompt list from one or more files with enhanced error handling."""
+        try:
+            path_input = self.ui.prompt_path_var.get().strip()
+            
+            # BULLETPROOF IMPROVEMENT: Validate path input
+            if not path_input:
+                self._current_file_path = ""
+                self._prompts_modified = False
+                self._update_path_entry_border()
+                self._load_default_prompts()
+                return
+            
+            # BULLETPROOF IMPROVEMENT: Check for path injection attempts
+            if any(char in path_input for char in ['..', '\\', '/', ':', '*', '?', '"', '<', '>', '|']):
+                logger.warning(f"Potentially unsafe path detected: {path_input}")
+                self._show_error_border("Invalid path characters detected")
+                return
+            
+            # Split paths by semicolon and handle multiple files
+            if self._load_prompts_from_multiple_files(path_input):
+                # Successfully loaded - save path preference
+                if hasattr(self.ui, "config_service"):
+                    try:
+                        self.ui.config_service.save_path_preference(path_input)
+                    except Exception as e:
+                        logger.warning(f"Failed to save path preference: {e}")
+            else:
+                # Failed to load - show error border
+                self._current_file_path = ""
+                self._prompts_modified = False
+                self._update_path_entry_border()
+                self._update_preview("")
+        except Exception as e:
+            logger.error(f"Error in validate_prompt_list: {e}")
+            self._show_error_border(f"Error: {str(e)}")
     
     def browse_prompt_file(self) -> None:
-        """Open file browser to select one or more prompt files."""
-        from tkinter import filedialog
-        
-        # Get the initial directory
-        initial_dir = self._get_initial_directory()
-        
-        # Open file dialog for multiple file selection
-        file_paths = filedialog.askopenfilenames(
-            title="Select Prompt List Files (use Ctrl+Click for multiple)",
-            initialdir=initial_dir,
-            filetypes=[
-                ("All files", "*.*"),
-                ("Python files", "*.py"),
-                ("Text files", "*.txt"),
-                ("CSV files", "*.csv"),
-            ],
-        )
-        
-        if file_paths:
-            # Join multiple paths with semicolons
-            combined_paths = ";".join(file_paths)
+        """Open file browser to select one or more prompt files with enhanced error handling."""
+        try:
+            from tkinter import filedialog
             
-            # Update the path input
-            self.ui.prompt_path_var.set(combined_paths)
+            # BULLETPROOF IMPROVEMENT: Get the initial directory with fallback
+            initial_dir = self._get_initial_directory()
+            if not initial_dir or not Path(initial_dir).exists():
+                initial_dir = str(Path.cwd())
+                logger.warning(f"Initial directory not found, using current directory: {initial_dir}")
             
-            # Save preferences
-            self._save_file_preferences(file_paths)
+            # BULLETPROOF IMPROVEMENT: Validate initial directory
+            if not Path(initial_dir).is_dir():
+                logger.warning(f"Initial directory is not a valid directory: {initial_dir}")
+                initial_dir = str(Path.cwd())
             
-            # Validate and load the prompt list
-            self.validate_prompt_list()
+            # Open file dialog for multiple file selection
+            file_paths = filedialog.askopenfilenames(
+                title="Select Prompt List Files (use Ctrl+Click for multiple)",
+                initialdir=initial_dir,
+                filetypes=[
+                    ("All files", "*.*"),
+                    ("Python files", "*.py"),
+                    ("Text files", "*.txt"),
+                    ("CSV files", "*.csv"),
+                ],
+            )
+            
+            if file_paths:
+                # BULLETPROOF IMPROVEMENT: Validate selected files
+                valid_paths = []
+                for file_path in file_paths:
+                    try:
+                        if Path(file_path).exists() and Path(file_path).is_file():
+                            valid_paths.append(file_path)
+                        else:
+                            logger.warning(f"Selected file does not exist or is not a file: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"Error validating file path {file_path}: {e}")
+                
+                if not valid_paths:
+                    logger.error("No valid files selected")
+                    return
+                
+                # Join multiple paths with semicolons
+                combined_paths = ";".join(valid_paths)
+                
+                # Update the path input
+                self.ui.prompt_path_var.set(combined_paths)
+                
+                # Save preferences with error handling
+                try:
+                    self._save_file_preferences(valid_paths)
+                except Exception as e:
+                    logger.warning(f"Failed to save file preferences: {e}")
+                
+                # Validate and load the prompt list
+                self.validate_prompt_list()
+        except Exception as e:
+            logger.error(f"Error in browse_prompt_file: {e}")
+            self._show_error_border(f"Error browsing files: {str(e)}")
     
     def load_last_prompt_file(self) -> None:
-        """Load the last used prompt file."""
-        if hasattr(self.ui, "config_service"):
-            last_file = self.ui.config_service.load_path_preference("")
-            if last_file and Path(last_file).exists():
-                self.ui.prompt_path_var.set(last_file)
-                if self._load_prompts_from_file(last_file):
-                    return
-        
-        # Try to load default prompts directly
-        self._load_default_prompts()
+        """Load the last used prompt file with enhanced error handling."""
+        try:
+            if hasattr(self.ui, "config_service"):
+                try:
+                    last_file = self.ui.config_service.load_path_preference("")
+                    if last_file and Path(last_file).exists():
+                        # BULLETPROOF IMPROVEMENT: Validate file before loading
+                        if Path(last_file).is_file():
+                            self.ui.prompt_path_var.set(last_file)
+                            if self._load_prompts_from_file(last_file):
+                                logger.info(f"Successfully loaded last prompt file: {last_file}")
+                                return
+                            else:
+                                logger.warning(f"Failed to load last prompt file: {last_file}")
+                        else:
+                            logger.warning(f"Last prompt file is not a valid file: {last_file}")
+                    else:
+                        logger.info("No last prompt file found or file does not exist")
+                except Exception as e:
+                    logger.warning(f"Error loading last prompt file: {e}")
+            
+            # Try to load default prompts directly
+            self._load_default_prompts()
+        except Exception as e:
+            logger.error(f"Error in load_last_prompt_file: {e}")
+            self._load_default_prompts()
     
     def save_prompts_manually(self, file_path: Optional[str] = None) -> bool:
         """
-        Manually save prompts to a file.
+        Manually save prompts to a file with enhanced error handling.
         
         Args:
             file_path: Optional file path to save to. If None, uses current file path.
@@ -135,29 +196,66 @@ class PromptIO:
         Returns:
             True if saved successfully, False otherwise.
         """
-        if not self.ui.prompts:
-            print("No prompts to save")
-            return False
-        
-        target_path = file_path or self._current_file_path
-        if not target_path:
-            print("No file path specified for saving")
-            return False
-        
         try:
-            success = self.file_service.save_prompts(target_path, self.ui.prompts)
-            if success:
-                # Update persistence tracking
-                self._current_file_path = target_path
-                self._original_prompts_hash = hash(tuple(self.ui.prompts))
-                self._prompts_modified = False
-                self._update_path_entry_border()
-                print(f"Manually saved prompts to: {target_path}")
-                return True
-            print(f"Failed to save prompts to: {target_path}")
-            return False
+            # BULLETPROOF IMPROVEMENT: Validate prompts
+            if not self.ui.prompts:
+                logger.warning("No prompts to save")
+                return False
+            
+            # BULLETPROOF IMPROVEMENT: Validate prompt content
+            valid_prompts = []
+            for i, prompt in enumerate(self.ui.prompts):
+                if prompt and isinstance(prompt, str) and prompt.strip():
+                    valid_prompts.append(prompt.strip())
+                else:
+                    logger.warning(f"Invalid prompt at index {i}: {prompt}")
+            
+            if not valid_prompts:
+                logger.warning("No valid prompts to save")
+                return False
+            
+            target_path = file_path or self._current_file_path
+            if not target_path:
+                logger.warning("No file path specified for saving")
+                return False
+            
+            # BULLETPROOF IMPROVEMENT: Validate target path
+            try:
+                target_path_obj = Path(target_path)
+                if target_path_obj.exists() and not target_path_obj.is_file():
+                    logger.error(f"Target path exists but is not a file: {target_path}")
+                    return False
+                
+                # Ensure parent directory exists
+                target_path_obj.parent.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                logger.error(f"Error validating target path {target_path}: {e}")
+                return False
+            
+            # BULLETPROOF IMPROVEMENT: Save with backup
+            try:
+                # Create backup if file exists
+                if Path(target_path).exists():
+                    backup_path = f"{target_path}.backup"
+                    import shutil
+                    shutil.copy2(target_path, backup_path)
+                    logger.info(f"Created backup: {backup_path}")
+                
+                success = self.file_service.save_prompts(target_path, valid_prompts)
+                if success:
+                    logger.info(f"Successfully saved {len(valid_prompts)} prompts to {target_path}")
+                    self._current_file_path = target_path
+                    self._prompts_modified = False
+                    self._update_path_entry_border()
+                    return True
+                else:
+                    logger.error(f"Failed to save prompts to {target_path}")
+                    return False
+            except Exception as e:
+                logger.error(f"Error saving prompts: {e}")
+                return False
         except Exception as e:
-            print(f"Error saving prompts: {e}")
+            logger.error(f"Error in save_prompts_manually: {e}")
             return False
     
     def auto_save_prompts(self) -> None:
@@ -265,63 +363,90 @@ class PromptIO:
         self.ui.config_service.save_last_directory(first_file_dir)
     
     def _load_prompts_from_multiple_files(self, path_input: str) -> bool:
-        """Load prompts from multiple files separated by semicolons."""
+        """Load prompts from multiple files with enhanced error handling."""
         try:
-            # Split paths by semicolon and clean up whitespace
-            file_paths = [
-                path.strip() for path in path_input.split(";") if path.strip()
-            ]
-            
-            if not file_paths:
+            # BULLETPROOF IMPROVEMENT: Validate path input
+            if not path_input or not isinstance(path_input, str):
+                logger.error("Invalid path input")
                 return False
             
-            all_prompts = []
-            loaded_files = []
-            failed_files = []
+            # Split paths by semicolon
+            file_paths = [path.strip() for path in path_input.split(";") if path.strip()]
             
-            # Load prompts from each file
+            if not file_paths:
+                logger.error("No valid file paths found")
+                return False
+            
+            # BULLETPROOF IMPROVEMENT: Validate each file path
+            valid_paths = []
             for file_path in file_paths:
-                success, result = self.file_service.parse_prompt_list(file_path)
-                
-                if success and isinstance(result, list):
-                    all_prompts.extend(result)
-                    loaded_files.append(file_path)
-                    print(f"Successfully loaded {len(result)} prompts from: {file_path}")
+                try:
+                    if Path(file_path).exists() and Path(file_path).is_file():
+                        valid_paths.append(file_path)
+                    else:
+                        logger.warning(f"File does not exist or is not a file: {file_path}")
+                except Exception as e:
+                    logger.warning(f"Error validating file path {file_path}: {e}")
+            
+            if not valid_paths:
+                logger.error("No valid files found")
+                return False
+            
+            # Load prompts from each valid file
+            all_prompts = []
+            successful_files = 0
+            
+            for file_path in valid_paths:
+                try:
+                    prompts = self._load_prompts_from_file(file_path)
+                    if prompts:
+                        all_prompts.extend(prompts)
+                        successful_files += 1
+                        logger.info(f"Successfully loaded {len(prompts)} prompts from {file_path}")
+                    else:
+                        logger.warning(f"No prompts loaded from {file_path}")
+                except Exception as e:
+                    logger.error(f"Error loading prompts from {file_path}: {e}")
+            
+            if successful_files == 0:
+                logger.error("Failed to load prompts from any files")
+                return False
+            
+            # BULLETPROOF IMPROVEMENT: Validate loaded prompts
+            valid_prompts = []
+            for i, prompt in enumerate(all_prompts):
+                if prompt and isinstance(prompt, str) and prompt.strip():
+                    valid_prompts.append(prompt.strip())
                 else:
-                    failed_files.append(file_path)
-                    print(f"Failed to load prompts from: {file_path}")
+                    logger.warning(f"Invalid prompt at index {i}: {prompt}")
             
-            if all_prompts:
-                # Set combined prompts
-                self.ui.prompts = all_prompts
-                self.ui.prompt_count = len(all_prompts)
-                self.ui.current_prompt_index = 0
-                
-                # Update inline prompt editor service
-                if hasattr(self.ui, "prompt_list_service"):
-                    self.ui.prompt_list_service.set_prompts(all_prompts)
-                
-                # Set up persistence tracking (use first file as primary)
-                self._current_file_path = loaded_files[0] if loaded_files else ""
-                self._original_prompts_hash = hash(tuple(all_prompts))
-                self._prompts_modified = False
-                
-                # Update UI
-                self._update_path_entry_border()
-                self._update_preview(all_prompts[0] if all_prompts else "")
-                
-                print(f"Total prompts loaded: {len(all_prompts)} from {len(loaded_files)} files")
-                if failed_files:
-                    print(f"Failed to load {len(failed_files)} files: {', '.join(failed_files)}")
-                return True
+            if not valid_prompts:
+                logger.error("No valid prompts loaded from any files")
+                return False
             
-            # If no prompts were loaded from any file, return False
-            if failed_files:
-                print(f"Failed to load any prompts from {len(failed_files)} files")
-            return False
+            # Update UI with loaded prompts
+            self.ui.prompts = valid_prompts
+            self.ui.current_prompt_index = 0
+            self._current_file_path = path_input
+            self._prompts_modified = False
+            
+            # Update UI components
+            self._update_path_entry_border(COLOR_SUCCESS)
+            self._update_preview(f"Loaded {len(valid_prompts)} prompts from {successful_files} files")
+            
+            # Update prompt list service if available
+            if hasattr(self.ui, "prompt_list_service"):
+                try:
+                    self.ui.prompt_list_service.set_prompts(valid_prompts)
+                    self.ui.prompt_list_service.set_current_prompt_index(0)
+                except Exception as e:
+                    logger.warning(f"Error updating prompt list service: {e}")
+            
+            logger.info(f"Successfully loaded {len(valid_prompts)} prompts from {successful_files} files")
+            return True
             
         except Exception as e:
-            print(f"Error loading prompts from multiple files: {e}")
+            logger.error(f"Error in _load_prompts_from_multiple_files: {e}")
             return False
     
     def _load_prompts_from_file(self, file_path: str) -> bool:
@@ -415,3 +540,11 @@ class PromptIO:
         else:
             # File is unmodified - use success border
             self.ui.path_entry.configure(border_color=COLOR_SUCCESS)
+    
+    def _show_error_border(self, message: str) -> None:
+        """Show error border with message."""
+        try:
+            self._update_path_entry_border(COLOR_ERROR)
+            logger.error(f"File loading error: {message}")
+        except Exception as e:
+            logger.error(f"Error showing error border: {e}")

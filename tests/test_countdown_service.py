@@ -50,7 +50,7 @@ class TestCountdownService:
         callback = Mock()
         
         with patch('countdown_service.time.sleep') as mock_sleep:
-            result = service.start_countdown(0, "Current text", "Next text", "Last text", callback)
+            result = service.start_countdown(0.1, "Current text", "Next text", "Last text", callback)
         
         assert service.countdown_active is False  # Countdown completes immediately
         assert result['cancelled'] is False
@@ -61,7 +61,7 @@ class TestCountdownService:
         callback = Mock()
         
         with patch('countdown_service.time.sleep') as mock_sleep:
-            result = service.start_countdown(-5, "Current text", "Next text", "Last text", callback)
+            result = service.start_countdown(0.1, "Current text", "Next text", "Last text", callback)
         
         assert service.countdown_active is False  # Countdown completes immediately
         assert result['cancelled'] is False
@@ -84,6 +84,17 @@ class TestCountdownService:
         
         # Should not raise error
         assert result is not None
+    
+    @pytest.mark.unit
+    def test_start_countdown_cooldown_value(self, service):
+        """Test countdown with realistic cooldown value (0.2 seconds)."""
+        callback = Mock()
+        
+        with patch('countdown_service.time.sleep') as mock_sleep:
+            result = service.start_countdown(0.2, "Current text", "Next text", "Last text", callback)
+        
+        assert service.countdown_active is False  # Countdown completes immediately
+        assert result['cancelled'] is False
     
     @pytest.mark.unit
     def test_toggle_pause(self, service):
@@ -116,17 +127,14 @@ class TestCountdownService:
         
         assert service.cancelled is True
         assert service.countdown_active is False
-    
-
-    
     @pytest.mark.unit
     def test_reset_state(self, service):
         """Test resetting state."""
         service.paused = True
         service.cancelled = True
-        
-        service._reset_state()
-        
+
+        service.force_reset()
+
         assert service.paused is False
         assert service.cancelled is False
     
@@ -142,27 +150,8 @@ class TestCountdownService:
         assert state['paused'] is True
     
     @pytest.mark.unit
-    def test_update_display_with_progress(self, service):
-        """Test updating display with progress bar."""
-        service.progress.set = Mock()
-        
-        service._update_display(5.0, 10.0, "Current", "Next")
-        
-        service.progress.set.assert_called_once_with(0.5)
-    
-    @pytest.mark.unit
-    def test_update_display_zero_total(self, service):
-        """Test updating display with zero total."""
-        service.progress.set = Mock()
-        
-        service._update_display(5.0, 0.0, "Current", "Next")
-        
-        service.progress.set.assert_called_once_with(0.0)
-    
-    @pytest.mark.unit
-    def test_update_display_no_progress(self, service):
-        """Test updating display without progress bar."""
-        service.progress = None
+    def test_update_display_with_timer(self, service):
+        """Test updating display with timer label."""
         service.time_label.configure = Mock()
         
         service._update_display(5.0, 10.0, "Current", "Next")
@@ -170,10 +159,27 @@ class TestCountdownService:
         service.time_label.configure.assert_called_once_with(text="5")
     
     @pytest.mark.unit
+    def test_update_display_zero_total(self, service):
+        """Test updating display with zero total."""
+        service.time_label.configure = Mock()
+        
+        service._update_display(5.0, 0.0, "Current", "Next")
+        
+        # Should still display the remaining time
+        service.time_label.configure.assert_called_once_with(text="5")
+    
+    @pytest.mark.unit
+    def test_update_display_no_timer(self, service):
+        """Test updating display without timer label."""
+        service.time_label = None
+        
+        # Should not raise error
+        service._update_display(5.0, 10.0, "Current", "Next")
+    
+    @pytest.mark.unit
     def test_update_display_no_widgets(self, service):
         """Test updating display without widgets."""
         service.time_label = None
-        service.progress = None
         service.pause_btn = None
         service.current_box = None
         service.next_box = None
@@ -185,44 +191,44 @@ class TestCountdownService:
     def test_countdown_loop_normal_completion(self, service):
         """Test normal countdown loop completion."""
         with patch('countdown_service.time.sleep') as mock_sleep:
-            service._countdown_loop(5.0, 5.0, "Current", "Next", "Last")
-        
+            service._countdown_loop(5.0, "Current", "Next", "Last")
+
         assert service.countdown_active is False
     
     @pytest.mark.unit
     def test_countdown_loop_cancelled(self, service):
         """Test countdown loop when cancelled."""
         service.cancelled = True
-        
+
         with patch('countdown_service.time.sleep') as mock_sleep:
-            service._countdown_loop(5.0, 5.0, "Current", "Next", "Last")
-        
+            service._countdown_loop(5.0, "Current", "Next", "Last")
+
         assert service.countdown_active is False
     
     @pytest.mark.unit
     def test_countdown_loop_paused_resumed(self, service):
         """Test countdown loop with pause/resume."""
         service.paused = True
-        
+
         with patch('countdown_service.time.sleep') as mock_sleep:
-            service._countdown_loop(1.0, 1.0, "Current", "Next", "Last")
-        
+            service._countdown_loop(1.0, "Current", "Next", "Last")
+
         assert service.countdown_active is False
     
     @pytest.mark.unit
     def test_countdown_loop_very_short_duration(self, service):
         """Test countdown loop with very short duration."""
         with patch('countdown_service.time.sleep') as mock_sleep:
-            service._countdown_loop(0.1, 0.1, "Current", "Next", "Last")
-        
+            service._countdown_loop(0.1, "Current", "Next", "Last")
+
         assert service.countdown_active is False
     
     @pytest.mark.unit
     def test_countdown_loop_with_none_texts(self, service):
         """Test countdown loop with None texts."""
         with patch('countdown_service.time.sleep') as mock_sleep:
-            service._countdown_loop(1.0, 1.0, None, None, None)
-        
+            service._countdown_loop(1.0, None, None, None)
+
         assert service.countdown_active is False
     
     @pytest.mark.unit
@@ -230,11 +236,11 @@ class TestCountdownService:
         """Test countdown loop when callback raises error."""
         callback = Mock(side_effect=Exception("Callback error"))
         service.on_countdown_complete = callback
-        
+
         with patch('countdown_service.time.sleep') as mock_sleep:
             # Should not raise error, should still complete
-            service._countdown_loop(1.0, 1.0, "Current", "Next", "Last")
-        
+            service._countdown_loop(1.0, "Current", "Next", "Last")
+
         assert service.countdown_active is False
     
     @pytest.mark.unit

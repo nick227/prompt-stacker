@@ -22,7 +22,7 @@ def load_coords() -> Optional[Coords]:
             "input": tuple(data["input"]),
             "submit": tuple(data["submit"]),
             "accept": tuple(data["accept"]),
-        }  # type: ignore[assignment]
+        }
     except Exception:
         return None
 

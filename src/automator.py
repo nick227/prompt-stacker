@@ -1,10 +1,7 @@
-import atexit
 import logging
 import sys
 import threading
 import time
-from concurrent.futures import Future, ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Dict, List, Optional, Tuple, Any
 
 import pyautogui
@@ -78,144 +75,12 @@ pyautogui.PAUSE = config.automation.pyautogui_pause
 pyautogui.FAILSAFE = config.automation.pyautogui_failsafe
 
 # =============================================================================
-# THREAD POOL MANAGEMENT
+# SIMPLIFIED THREAD MANAGEMENT
 # =============================================================================
-
-
-class AutomationThreadPool:
-    """
-    Thread pool manager for automation operations.
-
-    Provides per-session thread pools with proper cleanup and error handling.
-    """
-
-    def __init__(self, max_workers: int = 4, thread_name_prefix: str = "Automation"):
-        """
-        Initialize the thread pool manager.
-
-        Args:
-            max_workers: Maximum number of worker threads
-            thread_name_prefix: Prefix for thread names
-        """
-        self.max_workers = max_workers
-        self.thread_name_prefix = thread_name_prefix
-        self.executor: Optional[ThreadPoolExecutor] = None
-        self.active_futures: List[Future] = []
-        self._lock = threading.Lock()
-        self._shutdown_event = threading.Event()
-
-    def start(self) -> None:
-        """Start the thread pool executor."""
-        if self.executor is None or self.executor._shutdown:
-            with self._lock:
-                self.executor = ThreadPoolExecutor(
-                    max_workers=self.max_workers,
-                    thread_name_prefix=self.thread_name_prefix,
-                )
-                self.active_futures.clear()
-                self._shutdown_event.clear()
-                logger.info(
-                    f"Started automation thread pool with {self.max_workers} workers",
-                )
-
-    def submit(self, func, *args, **kwargs) -> Future:
-        """
-        Submit a task to the thread pool.
-
-        Args:
-            func: Function to execute
-            *args: Function arguments
-            **kwargs: Function keyword arguments
-
-        Returns:
-            Future object for the submitted task
-        """
-        if self.executor is None or self.executor._shutdown:
-            self.start()
-
-        future = self.executor.submit(func, *args, **kwargs)
-
-        with self._lock:
-            self.active_futures.append(future)
-
-        # Add callback to remove future from active list when done
-        future.add_done_callback(self._remove_future)
-
-        return future
-
-    def _remove_future(self, future: Future) -> None:
-        """Remove completed future from active list."""
-        with self._lock:
-            if future in self.active_futures:
-                self.active_futures.remove(future)
-
-    def cancel_all_futures(self) -> None:
-        """Cancel all active futures."""
-        with self._lock:
-            for future in self.active_futures[
-                :
-            ]:  # Copy list to avoid modification during iteration
-                if not future.done():
-                    future.cancel()
-                    logger.info("Cancelled pending automation operation")
-
-    def shutdown(self, timeout: float = 10.0) -> None:
-        """
-        Shutdown the thread pool with proper cleanup.
-
-        Args:
-            timeout: Maximum time to wait for shutdown
-        """
-        if self.executor is None:
-            return
-
-        logger.info("Shutting down automation thread pool...")
-
-        # Cancel all pending operations
-        self.cancel_all_futures()
-
-        # Signal shutdown
-        self._shutdown_event.set()
-
-        try:
-            # Shutdown executor (ThreadPoolExecutor.shutdown doesn't accept timeout parameter)
-            self.executor.shutdown(wait=True)
-            logger.info("Automation thread pool shutdown complete")
-        except Exception as e:
-            logger.warning(f"Error during thread pool shutdown: {e}")
-        finally:
-            self.executor = None
-            self.active_futures.clear()
-
-    def is_shutdown(self) -> bool:
-        """Check if thread pool is shutdown."""
-        return self.executor is None or self.executor._shutdown
-
-    def get_active_count(self) -> int:
-        """Get number of active futures."""
-        with self._lock:
-            return len([f for f in self.active_futures if not f.done()])
-
-
-# Global thread pool manager (singleton)
-_thread_pool_manager = AutomationThreadPool(
-    max_workers=4,
-    thread_name_prefix="Automation",
-)
-
-
-# Register cleanup function
-def cleanup_thread_pool():
-    """Cleanup thread pool on exit."""
-    _thread_pool_manager.shutdown(timeout=15.0)
-
-
-atexit.register(cleanup_thread_pool)
-
 
 def run_with_timeout(func, timeout: float, *args, **kwargs):
     """
-    Run a function with timeout protection using the thread pool manager.
+    Run a function with timeout protection using a simple thread.
 
     Args:
         func: Function to execute
@@ -226,37 +91,49 @@ def run_with_timeout(func, timeout: float, *args, **kwargs):
     Returns:
         Function result or None if timeout/error
     """
-    try:
-        future = _thread_pool_manager.submit(func, *args, **kwargs)
-        return future.result(timeout=timeout)
-    except FutureTimeoutError:
+    result = None
+    exception = None
+    
+    def target():
+        nonlocal result, exception
+        try:
+            result = func(*args, **kwargs)
+        except Exception as e:
+            exception = e
+    
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout)
+    
+    if thread.is_alive():
         logger.error(f"Operation timed out after {timeout} seconds: {func.__name__}")
-        # Cancel the future to free up the thread
-        future.cancel()
         return None
-    except Exception as e:
-        logger.error(f"Operation failed: {func.__name__} - {e}")
+    
+    if exception:
+        logger.error(f"Operation failed: {func.__name__} - {exception}")
         return None
+    
+    return result
 
 
 def get_thread_pool_status() -> Dict[str, any]:
     """
-    Get thread pool status information.
+    Get thread status information (simplified).
 
     Returns:
-        Dictionary with thread pool status
+        Dictionary with thread status
     """
     return {
-        "active_operations": _thread_pool_manager.get_active_count(),
-        "max_workers": _thread_pool_manager.max_workers,
-        "is_shutdown": _thread_pool_manager.is_shutdown(),
+        "active_operations": 0,  # Simplified - no thread pool tracking
+        "max_workers": 1,
+        "is_shutdown": False,
     }
 
 
 def cleanup_automation_resources() -> None:
-    """Cleanup automation resources (call between automation sessions)."""
-    _thread_pool_manager.shutdown(timeout=5.0)
-    _thread_pool_manager.start()
+    """Cleanup automation resources (simplified)."""
+    # No thread pool to clean up
+    pass
 
 
 def paste_text_safely(text: str) -> bool:
@@ -385,12 +262,11 @@ def click_button_or_fallback(
                         return True
                     except Exception as e2:
                         logger.warning(f"Button click_input() failed: {e2}")
-                        pass
+
             else:
                 logger.warning(f"No button found matching pattern '{pattern}'")
         except Exception as e:
             logger.warning(f"Button search/click failed: {e}")
-            pass
             
         logger.info("Falling back to coordinate-based click")
         return click_with_timeout(coords)
@@ -494,6 +370,9 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
         f"Processing prompt {prompt_index + 1}/{len(initial_prompts)}: {text[:50]}..."
     )
 
+    # Define last_text for single prompt automation
+    last_text = None
+
     # Get ready pause with dialog to front
     logger.info(f"Starting get ready countdown for {initial_timers[3]} seconds")
     ui.bring_to_front()
@@ -501,7 +380,7 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
         initial_timers[3],  # get_ready_delay
         f"Starting {prompt_index + 1} of {len(initial_prompts)}",
         text,
-        None,
+        last_text,
     )
     logger.info(f"Get ready countdown result: {result}")
     if result.get("cancelled"):
@@ -512,8 +391,17 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
     if result.get("paused"):
         logger.info("Single prompt automation paused during get ready countdown")
         # Wait for countdown to complete (which will happen when resumed)
+        timeout_start = time.time()
+        timeout_duration = 300  # 5 minutes timeout
+        
         while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
             time.sleep(0.05)  # More responsive checking
+            
+            # Add timeout protection
+            if time.time() - timeout_start > timeout_duration:
+                logger.error("Countdown wait timeout - forcing continuation")
+                break
+                
         logger.info("Single prompt automation resumed after get ready countdown")
 
     # Process automation with timeout protection
@@ -560,7 +448,7 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
         else None
     )
     logger.info(f"Starting main wait countdown for {initial_timers[1]} seconds")
-    result = ui.countdown(initial_timers[1], text, next_text, None)  # main_wait
+    result = ui.countdown(initial_timers[1], text, next_text, last_text)  # main_wait
     logger.info(f"Main wait countdown result: {result}")
     if result.get("cancelled"):
         logger.info("Single prompt automation cancelled during main wait countdown")
@@ -570,8 +458,17 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
     if result.get("paused"):
         logger.info("Single prompt automation paused during main wait countdown")
         # Wait for countdown to complete (which will happen when resumed)
+        timeout_start = time.time()
+        timeout_duration = 300  # 5 minutes timeout
+        
         while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
             time.sleep(0.05)  # More responsive checking
+            
+            # Add timeout protection
+            if time.time() - timeout_start > timeout_duration:
+                logger.error("Countdown wait timeout - forcing continuation")
+                break
+                
         logger.info("Single prompt automation resumed after main wait countdown")
 
     if not click_button_or_fallback(
@@ -582,10 +479,26 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
         logger.error("Failed to click accept button")
         return False
 
-    if ui.countdown(int(initial_timers[2]), "Waiting...", next_text, None).get(
-        "cancelled"
-    ):  # cooldown
+    cooldown_result = ui.countdown(initial_timers[2], "Waiting...", next_text, last_text)  # cooldown
+    if cooldown_result.get("cancelled"):
         return False
+        
+    # Check for pause state during cooldown countdown execution
+    if cooldown_result.get("paused"):
+        logger.info("Single prompt automation paused during cooldown countdown")
+        # Wait for countdown to complete (which will happen when resumed)
+        timeout_start = time.time()
+        timeout_duration = 60  # 1 minute timeout for cooldown
+        
+        while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
+            time.sleep(0.05)  # More responsive checking
+            
+            # Add timeout protection
+            if time.time() - timeout_start > timeout_duration:
+                logger.error("Cooldown countdown wait timeout - forcing continuation")
+                break
+                
+        logger.info("Single prompt automation resumed after cooldown countdown")
 
     logger.info(
         f"Single prompt automation completed successfully for prompt {prompt_index + 1}",
@@ -593,27 +506,72 @@ def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
     return True
 
 
-def run_automation_with_ui(ui: SessionUI) -> bool:
-    """Run the automation process with an existing UI instance and enhanced error handling."""
-    logger.info("Starting automation with existing UI")
-
-    # Validate UI parameter
+def run_automation_with_ui(ui) -> bool:
+    """
+    Run automation with UI integration and enhanced error handling.
+    
+    Args:
+        ui: UI session instance
+        
+    Returns:
+        True if automation completed successfully, False otherwise
+    """
+    # BULLETPROOF IMPROVEMENT: Comprehensive parameter validation
     if ui is None:
         logger.error("UI parameter is None")
         return False
+    
+    # Validate UI has required components
+    required_components = ['countdown_service', 'coordinate_service', 'window_service']
+    missing_components = [comp for comp in required_components if not hasattr(ui, comp)]
+    if missing_components:
+        logger.error(f"UI missing required components: {missing_components}")
+        return False
 
-    enable_windows_dpi_awareness()
-    logger.info("DPI awareness enabled")
+    try:
+        enable_windows_dpi_awareness()
+        logger.info("DPI awareness enabled")
+    except Exception as e:
+        logger.warning(f"Failed to enable DPI awareness: {e}")
 
-    win = CursorWindow()
+    # BULLETPROOF IMPROVEMENT: Initialize window with error handling
+    try:
+        win = CursorWindow()
+    except Exception as e:
+        logger.error(f"Failed to initialize window: {e}")
+        return False
 
-    coords: Dict[str, Tuple[int, int]] = ui.get_coords()
-    start_delay, main_wait, cooldown, get_ready_delay = ui.get_timers()
+    # BULLETPROOF IMPROVEMENT: Validate all required data before starting
+    try:
+        coords: Dict[str, Tuple[int, int]] = ui.get_coords()
+        start_delay, main_wait, cooldown, get_ready_delay = ui.get_timers()
+        
+
+        
+        # Validate coordinates
+        required_coords = ['input', 'submit', 'accept']
+        missing_coords = [coord for coord in required_coords if coord not in coords]
+        if missing_coords:
+            logger.error(f"Missing required coordinates: {missing_coords}")
+            return False
+        
+        # Validate timers
+        if any(timer <= 0 for timer in [start_delay, main_wait, cooldown, get_ready_delay]):
+            logger.error("Invalid timer values - all timers must be positive")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Failed to get UI configuration: {e}")
+        return False
 
     # CRITICAL FIX: Capture initial state to prevent race conditions
-    initial_prompts = ui.get_prompts_safe()
-    initial_coords = ui.get_coords()
-    initial_timers = ui.get_timers()
+    try:
+        initial_prompts = ui.get_prompts_safe()
+        initial_coords = ui.get_coords()
+        initial_timers = ui.get_timers()
+    except Exception as e:
+        logger.error(f"Failed to capture initial state: {e}")
+        return False
 
     if not initial_prompts:
         logger.error("No prompts available from UI")
@@ -621,99 +579,127 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
 
     logger.info(f"Using {len(initial_prompts)} prompts from UI")
 
-    # Start delay countdown
-    next_preview = initial_prompts[0] if initial_prompts else None
-    result = ui.countdown(initial_timers[0], "About to start!", next_preview, None)
-    if result.get("cancelled"):
+    # BULLETPROOF IMPROVEMENT: Start delay with error recovery
+    try:
+        next_preview = initial_prompts[0] if initial_prompts else None
+        
+        result = ui.countdown(initial_timers[0], "About to start!", next_preview, None)
+        if result.get("cancelled"):
+            logger.info("Automation cancelled during start delay")
+            return False
+    except Exception as e:
+        logger.error(f"Failed during start delay: {e}")
         return False
 
     index = 0
     last_text = None
+    consecutive_failures = 0
+    max_consecutive_failures = 3
+    
     try:
         while index < len(initial_prompts):
-            # CRITICAL FIX: Use captured state to prevent race conditions
-            # Validate that state hasn't changed during automation
-            current_prompts = ui.get_prompts_safe()
-            current_coords = ui.get_coords()
-            current_timers = ui.get_timers()
+            # BULLETPROOF IMPROVEMENT: Validate state consistency
+            try:
+                current_prompts = ui.get_prompts_safe()
+                current_coords = ui.get_coords()
+                current_timers = ui.get_timers()
 
-            if current_prompts != initial_prompts:
-                logger.error(
-                    "Prompt list changed during automation! Stopping for safety."
-                )
+                if current_prompts != initial_prompts:
+                    logger.error("Prompt list changed during automation! Stopping for safety.")
+                    return False
+
+                if current_coords != initial_coords:
+                    logger.error("Coordinates changed during automation! Stopping for safety.")
+                    return False
+
+                if current_timers != initial_timers:
+                    logger.error("Timers changed during automation! Stopping for safety.")
+                    return False
+            except Exception as e:
+                logger.error(f"Failed to validate state consistency: {e}")
                 return False
 
-            if current_coords != initial_coords:
-                logger.error(
-                    "Coordinates changed during automation! Stopping for safety."
-                )
-                return False
-
-            if current_timers != initial_timers:
-                logger.error("Timers changed during automation! Stopping for safety.")
-                return False
-
-            # Update UI prompt index and ensure synchronization
-            ui.update_prompt_index_from_automation(index)
+            # BULLETPROOF IMPROVEMENT: Update UI prompt index with error handling
+            try:
+                ui.update_prompt_index_from_automation(index)
+            except Exception as e:
+                logger.warning(f"Failed to update prompt index: {e}")
 
             # CRITICAL FIX: Detect and fix stuck UI states before starting new cycle
-            # This prevents the UI from being stuck on "Waiting..." from previous cycle
             try:
-                if ui.detect_and_fix_stuck_ui():
+                if hasattr(ui, 'detect_and_fix_stuck_ui') and ui.detect_and_fix_stuck_ui():
                     logger.info("Stuck UI state detected and fixed before starting new cycle")
             except Exception as e:
                 logger.warning(f"Error detecting stuck UI state: {e}")
 
-            # CRITICAL FIX: Check for multiple running threads and force cleanup
+
+
+            # BULLETPROOF IMPROVEMENT: Get text with validation
             try:
-                thread_status = ui.countdown_service.get_thread_status()
-                if thread_status["thread_alive"] and not thread_status["countdown_active"]:
-                    logger.warning("Detected orphaned countdown thread - forcing cleanup")
-                    ui.countdown_service.force_reset()
-                elif thread_status["thread_alive"] and thread_status["countdown_active"]:
-                    logger.info("Countdown thread is running normally")
-                else:
-                    logger.info("No countdown threads running")
-            except Exception as e:
-                logger.warning(f"Error checking thread status: {e}")
-
-            # CRITICAL FIX: Force reset countdown service before starting new cycle
-            # This prevents hanging issues from previous cycles
-            ui.countdown_service.force_reset()
-
-            # Get the text AFTER ensuring we have the correct index
-            text = initial_prompts[index]
-            logger.info(
-                f"Processing prompt {index + 1}/{len(initial_prompts)}: {text[:50]}..."
-            )
-
-            # Get ready pause with dialog to front
-            logger.info(f"Starting get ready countdown for {current_timers[3]} seconds")
-            ui.bring_to_front()
-            
-            # CRITICAL FIX: Cleanup any orphaned threads before starting new countdown
-            ui.countdown_service.cleanup_orphaned_threads()
-            
-            result = ui.countdown(
-                current_timers[3],  # get_ready_delay
-                f"Starting {index + 1} of {len(initial_prompts)}",
-                text,
-                last_text,
-            )
-            logger.info(f"Get ready countdown result: {result}")
-            if result.get("cancelled"):
-                logger.info("Automation cancelled during get ready countdown")
+                text = initial_prompts[index]
+                if not text or not isinstance(text, str):
+                    logger.error(f"Invalid prompt at index {index}: {text}")
+                    consecutive_failures += 1
+                    if consecutive_failures >= max_consecutive_failures:
+                        logger.error("Too many consecutive failures - stopping automation")
+                        return False
+                    index += 1
+                    continue
+                    
+                logger.info(f"Processing prompt {index + 1}/{len(initial_prompts)}: {text[:50]}...")
+            except IndexError:
+                logger.error(f"Index {index} out of range for prompts list")
                 return False
+            except Exception as e:
+                logger.error(f"Error getting prompt text: {e}")
+                return False
+
+            # CRITICAL FIX: Define next_text before using it in countdown
+            next_text = (
+                initial_prompts[index + 1] if index + 1 < len(initial_prompts) else None
+            )
+
+            # BULLETPROOF IMPROVEMENT: Get ready countdown with error recovery
+            try:
+                logger.info(f"Starting get ready countdown for {current_timers[3]} seconds")
+                ui.bring_to_front()
+                
+                result = ui.countdown(
+                    current_timers[3],  # get_ready_delay
+                    f"Starting {index + 1} of {len(initial_prompts)}",
+                    next_text,
+                    last_text,
+                )
+                if result.get("cancelled"):
+                    logger.info("Automation cancelled during get ready countdown")
+                    return False
+            except Exception as e:
+                logger.error(f"Failed during get ready countdown: {e}")
+                consecutive_failures += 1
+                if consecutive_failures >= max_consecutive_failures:
+                    logger.error("Too many consecutive failures - stopping automation")
+                    return False
+                index += 1
+                continue
 
             # Check for pause state during countdown execution
             if result.get("paused"):
                 logger.info("Automation paused during get ready countdown")
                 # Wait for countdown to complete (which will happen when resumed)
+                timeout_start = time.time()
+                timeout_duration = 300  # 5 minutes timeout
+                
                 while (
                     ui.countdown_service.is_active()
                     and ui.countdown_service.is_paused()
                 ):
                     time.sleep(0.05)  # More responsive checking
+                    
+                    # Add timeout protection
+                    if time.time() - timeout_start > timeout_duration:
+                        logger.error("Countdown wait timeout - forcing continuation")
+                        break
+                        
                 logger.info("Automation resumed after get ready countdown")
 
             # Process visualization and automation
@@ -777,17 +763,10 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
                 logger.error("Failed to click submit button")
                 return False
 
-            next_text = (
-                initial_prompts[index + 1] if index + 1 < len(initial_prompts) else None
-            )
             logger.info(f"Starting main wait countdown for {current_timers[1]} seconds")
             
-            # CRITICAL FIX: Cleanup any orphaned threads before starting new countdown
-            ui.countdown_service.cleanup_orphaned_threads()
-            
-            result = ui.countdown(
-                current_timers[1], text, next_text, last_text
-            )  # main_wait
+            # Start the main wait countdown - simplified
+            result = ui.countdown(current_timers[1], text, next_text, last_text)  # main_wait
             logger.info(f"Main wait countdown result: {result}")
             if result.get("cancelled"):
                 logger.info("Automation cancelled during main wait countdown")
@@ -797,11 +776,20 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
             if result.get("paused"):
                 logger.info("Automation paused during main wait countdown")
                 # Wait for countdown to complete (which will happen when resumed)
+                timeout_start = time.time()
+                timeout_duration = 300  # 5 minutes timeout
+                
                 while (
                     ui.countdown_service.is_active()
                     and ui.countdown_service.is_paused()
                 ):
                     time.sleep(0.05)  # More responsive checking
+                    
+                    # Add timeout protection
+                    if time.time() - timeout_start > timeout_duration:
+                        logger.error("Countdown wait timeout - forcing continuation")
+                        break
+                        
                 logger.info("Automation resumed after main wait countdown")
 
             if not click_button_or_fallback(
@@ -853,74 +841,25 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
                 logger.info("Accept button verification passed")
             
             # Enhanced debugging for cooldown countdown
-            cooldown_duration = int(current_timers[2])
+            cooldown_duration = current_timers[2]
             logger.info(f"Starting cooldown countdown for {cooldown_duration} seconds")
             
-            # CRITICAL FIX: Cleanup any orphaned threads before starting new countdown
-            ui.countdown_service.cleanup_orphaned_threads()
-            
-            # CRITICAL FIX: Use a threading event to wait for countdown completion
-            countdown_completed = threading.Event()
-            countdown_result = None
-            
-            def on_cooldown_complete(result: Dict[str, Any]) -> None:
-                """Callback when cooldown countdown completes - triggers next automation cycle."""
-                nonlocal countdown_result
-                try:
-                    logger.info(f"Cooldown countdown completion callback triggered with result: {result}")
-                    countdown_result = result
-                    countdown_completed.set()  # Signal that countdown is complete
-                except Exception as e:
-                    logger.error(f"Error in cooldown completion callback: {e}")
-                    countdown_result = {"cancelled": True}
-                    countdown_completed.set()
-            
-            # Start the countdown with completion callback
-            result_sync = ui.countdown(
-                cooldown_duration, 
-                "Waiting...", 
-                next_text, 
-                last_text,
-                on_complete=on_cooldown_complete
-            )
-            # If countdown returned a result synchronously (e.g., mocked in tests), use it
-            if isinstance(result_sync, dict):
-                countdown_result = result_sync
-                countdown_completed.set()
-                logger.info(f"Cooldown countdown returned synchronously: {countdown_result}")
-            
-            # CRITICAL FIX: Wait for countdown to actually complete
-            logger.info("Waiting for cooldown countdown to complete...")
-            if countdown_completed.is_set() or countdown_completed.wait(timeout=cooldown_duration + 10):
-                logger.info(f"Cooldown countdown completed with result: {countdown_result}")
-            else:
-                logger.warning("Cooldown countdown timeout - forcing completion")
-                countdown_result = {"cancelled": True}
-            
-            # CRITICAL FIX: Safety check - if countdown_result is None, create a default
-            if countdown_result is None:
-                logger.warning("Countdown result is None - creating default result")
-                countdown_result = {"cancelled": False, "paused": False}
-            
-            if countdown_result and countdown_result.get("cancelled"):
+            # Start the cooldown countdown - simplified
+            countdown_result = ui.countdown(cooldown_duration, "Waiting...", next_text, last_text)
+            if countdown_result.get("cancelled"):
                 logger.info("Automation cancelled during cooldown countdown")
                 return False
                 
-            if countdown_result and countdown_result.get("paused"):
+            # Handle pause state with timeout protection
+            if countdown_result.get("paused"):
                 logger.info("Cooldown countdown was paused - waiting for completion")
-                # Wait for countdown to complete (which will happen when resumed)
                 wait_start = time.time()
-                while (
-                    ui.countdown_service.is_active() and ui.countdown_service.is_truly_paused()
-                ):
-                    time.sleep(0.05)  # More responsive checking
-                    
-                    # CRITICAL FIX: Safety timeout to prevent infinite waiting
+                while ui.countdown_service.is_active() and ui.countdown_service.is_paused():
+                    time.sleep(0.05)
                     if time.time() - wait_start > 60:  # 60 second timeout
                         logger.warning("Cooldown countdown stuck in paused state - forcing completion")
                         ui.countdown_service.force_complete()
                         break
-                        
                 logger.info("Cooldown countdown resumed and completed")
 
             logger.info(f"Cooldown completed successfully for prompt {index + 1}")
@@ -952,9 +891,8 @@ def run_automation_with_ui(ui: SessionUI) -> bool:
         logger.error(f"Error during automation: {e}")
         return False
     finally:
-        # Log thread pool status for debugging
-        status = get_thread_pool_status()
-        logger.info(f"Thread pool status after automation: {status}")
+        # Simple cleanup
+        pass
 
 
 def run_automation(prompts: List[str]) -> bool:
