@@ -623,6 +623,11 @@ def run_automation_with_ui(ui) -> bool:
             try:
                 ui.current_prompt_index = index + 1
                 logger.info(f"Updated to prompt {index + 2}")
+
+                # CRITICAL FIX: Update textareas when advancing to next prompt
+                if hasattr(ui, "session_controller"):
+                    ui.session_controller._update_textareas_for_current_prompt()
+
             except Exception as e:
                 logger.warning(f"UI update failed: {e}")
 

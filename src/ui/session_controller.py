@@ -7,6 +7,7 @@ and manages the automation thread state.
 
 import logging
 import threading
+import tkinter
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class SessionController:
                 return False
 
             # Stop any existing countdown before starting
-            if hasattr(self.ui, "countdown_service"):
+            if self._has_countdown_service():
                 self.ui.countdown_service.force_reset()
 
             # Validate configuration before starting
@@ -70,7 +71,7 @@ class SessionController:
             self._started = True
 
             # Update UI state
-            if hasattr(self.ui, "prompt_list_service"):
+            if self._has_prompt_list_service():
                 self.ui.prompt_list_service.set_automation_running(True)
 
             # Start automation thread
@@ -84,6 +85,11 @@ class SessionController:
             if self._automation_thread and self._automation_thread.is_alive():
                 logger.info("Automation stopped via stop button")
                 self._stop_requested = True  # Signal the thread to stop
+
+            # Clear pause state and artifacts before stopping
+            if self._has_countdown_service() and self.ui.countdown_service.is_paused():
+                logger.info("Clearing pause state during stop")
+                self.ui.countdown_service.toggle_pause()  # Toggle off pause
 
             self._reset_automation_state()
             self._stop_countdown_if_active()
@@ -103,42 +109,33 @@ class SessionController:
     def next_prompt(self) -> None:
         """Advance to next prompt and start automation cycle if running."""
         with self._automation_lock:
-            if not self._started:
-                # If automation is not running, just advance UI position
-                if self.ui.current_prompt_index < len(self.ui.prompts) - 1:
-                    self.ui.current_prompt_index += 1
-                    if hasattr(self.ui, "prompt_list_service"):
-                        self.ui.prompt_list_service.set_current_prompt_index(
-                            self.ui.current_prompt_index,
-                        )
-                    print(f"Advanced to prompt {self.ui.current_prompt_index + 1}")
+            # Check if we can advance
+            if self.ui.current_prompt_index >= len(self.ui.prompts) - 1:
+                print("Next button: Already at last prompt")
                 return
 
-            # If automation is running, advance to next prompt and start automation cycle
-            if self.ui.current_prompt_index < len(self.ui.prompts) - 1:
-                # Stop countdown and advance index together
+            # Stop countdown if automation is running and countdown is not paused
+            if self._started and self._has_countdown_service() and not self.ui.countdown_service.is_paused():
                 self._stop_countdown_if_active()
 
-                # Advance to next prompt
-                self.ui.current_prompt_index += 1
-                if hasattr(self.ui, "prompt_list_service"):
-                    self.ui.prompt_list_service.set_current_prompt_index(
-                        self.ui.current_prompt_index,
-                    )
-                print(f"Next button: Advanced to prompt {self.ui.current_prompt_index + 1}")
+            # Advance to next prompt
+            self.ui.current_prompt_index += 1
+            print(f"Next button: Advanced to prompt {self.ui.current_prompt_index + 1}")
 
-                # Only start automation cycle if not paused
-                if hasattr(self.ui, "countdown_service") and not self.ui.countdown_service.is_paused():
-                    # Start automation cycle for the new prompt
-                    self._start_prompt_automation()
-                else:
-                    print("Next button: Automation paused - not starting new cycle")
-            else:
-                print("Next button: Already at last prompt")
+            # Update UI elements
+            self._update_textareas_for_current_prompt()
+
+            # Start automation cycle if running and not paused
+            if (self._started and
+                self._has_countdown_service() and
+                not self.ui.countdown_service.is_paused()):
+                self._start_prompt_automation()
+            elif self._started:
+                print("Next button: Automation paused - not starting new cycle")
 
     def toggle_pause(self) -> None:
         """Toggle pause state of countdown."""
-        if hasattr(self.ui, "countdown_service") and self.ui.countdown_service.is_active():
+        if self._has_countdown_service() and self.ui.countdown_service.is_active():
             self.ui.countdown_service.toggle_pause()
 
     def is_started(self) -> bool:
@@ -152,6 +149,14 @@ class SessionController:
     def is_stop_requested(self) -> bool:
         """Check if stop was requested."""
         return self._stop_requested
+
+    def _has_countdown_service(self) -> bool:
+        """Check if countdown service is available."""
+        return hasattr(self.ui, "countdown_service") and self.ui.countdown_service
+
+    def _has_prompt_list_service(self) -> bool:
+        """Check if prompt list service is available."""
+        return hasattr(self.ui, "prompt_list_service") and self.ui.prompt_list_service
 
     def _validate_start_prerequisites(self) -> bool:
         """Validate prerequisites before starting automation."""
@@ -190,6 +195,9 @@ class SessionController:
             # Save coordinates
             self.ui.coordinate_service.save_coordinates()
 
+            # Update textareas immediately when automation starts
+            self._update_textareas_for_current_prompt()
+
             # Run automation in a separate thread
             self._automation_thread = threading.Thread(
                 target=run_automation_with_ui,
@@ -204,6 +212,36 @@ class SessionController:
         except Exception:
             logger.exception("Error starting automation")
             self._reset_automation_state()
+
+    def _update_textareas_for_current_prompt(self) -> None:
+        """Update current and next prompt textareas and prompt list selection."""
+        try:
+            if not self.ui.prompts:
+                return
+
+            current_index = self.ui.current_prompt_index
+            current_text = self.ui.prompts[current_index] if current_index < len(self.ui.prompts) else ""
+            next_text = self.ui.prompts[current_index + 1] if current_index + 1 < len(self.ui.prompts) else ""
+
+            # Update current prompt textarea
+            if hasattr(self.ui, "current_box") and self.ui.current_box:
+                self.ui.current_box.delete("1.0", tkinter.END)
+                self.ui.current_box.insert("1.0", current_text)
+
+            # Update next prompt textarea
+            if hasattr(self.ui, "next_box") and self.ui.next_box:
+                next_display_text = f"Next: {next_text}" if next_text else "Next: (No more prompts)"
+                self.ui.next_box.delete("1.0", tkinter.END)
+                self.ui.next_box.insert("1.0", next_display_text)
+
+            # Update prompt list selection (black background)
+            if self._has_prompt_list_service():
+                self.ui.prompt_list_service.set_current_prompt_index(current_index)
+
+            logger.info(f"Updated textareas and prompt list selection for prompt {current_index + 1}")
+
+        except Exception as e:
+            logger.error(f"Error updating textareas: {e}")
 
     def _start_prompt_automation(self) -> None:
         """Start automation cycle for the current prompt."""
@@ -222,21 +260,21 @@ class SessionController:
     def _reset_automation_state(self) -> None:
         """Reset automation state to initial values."""
         self._started = False
-        if hasattr(self.ui, "prompt_list_service"):
+        self._prompts_locked = False
+
+        # Reset UI state
+        if self._has_prompt_list_service():
             self.ui.prompt_list_service.set_automation_running(False)
-        self.ui.current_prompt_index = 0
-        if hasattr(self.ui, "prompt_list_service"):
             self.ui.prompt_list_service.set_current_prompt_index(0)
 
-        # Unlock prompt list when automation stops
-        self._prompts_locked = False
+        self.ui.current_prompt_index = 0
 
     def _stop_countdown_if_active(self) -> None:
         """Stop countdown service if it's currently active."""
-        if hasattr(self.ui, "countdown_service") and self.ui.countdown_service.is_active():
+        if self._has_countdown_service() and self.ui.countdown_service.is_active():
             self.ui.countdown_service.stop()
 
     def _cancel_countdown_if_active(self) -> None:
         """Cancel countdown service if it's currently active."""
-        if hasattr(self.ui, "countdown_service") and self.ui.countdown_service.is_active():
+        if self._has_countdown_service() and self.ui.countdown_service.is_active():
             self.ui.countdown_service.cancel()

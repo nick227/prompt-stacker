@@ -163,11 +163,11 @@ class RefactoredSessionUI:
         # Initialize services that depend on UI
         self.file_service = FilePromptService()
 
-        # Initialize controllers and managers
-        self._initialize_controllers()
-
         # Initialize UI-dependent services AFTER UI is built
         self._initialize_ui_services()
+
+        # Initialize controllers and managers
+        self._initialize_controllers()
 
         # Load timer preferences
         self._load_timer_preferences()
@@ -178,7 +178,7 @@ class RefactoredSessionUI:
         # Load initial prompt list
         self.prompt_io.load_last_prompt_file()
 
-        # Update start button state
+        # Update start button state AFTER everything is initialized
         self.state_manager.update_start_state()
 
     def _build_interface(self) -> None:
@@ -360,9 +360,6 @@ class RefactoredSessionUI:
         # CRITICAL FIX: Start periodic UI health check to detect stuck states
         self.state_manager.start_ui_health_check()
 
-        # Update start button state after controllers are initialized
-        self.state_manager.update_start_state()
-
     def _toggle_settings(self) -> None:
         """Toggle the settings column visibility."""
         self.settings_collapsed = not self.settings_collapsed
@@ -424,6 +421,10 @@ class RefactoredSessionUI:
         """Handle timer value changes."""
         # Save preferences when timer values change
         self._save_timer_preferences()
+        
+        # Update start button state when timer values change
+        if hasattr(self, "state_manager"):
+            self.state_manager.update_start_state()
 
     def _on_prompt_click(self, index: int) -> None:
         """Handle prompt list click."""
@@ -432,6 +433,10 @@ class RefactoredSessionUI:
     def _on_prompts_changed(self, prompts: List[str]) -> None:
         """Handle prompts changed event from inline editor."""
         self.prompt_io.on_prompts_changed(prompts)
+        
+        # Update start button state when prompts change
+        if hasattr(self, "state_manager"):
+            self.state_manager.update_start_state()
 
     def wait_for_start(self) -> None:
         """Wait for user to start the automation."""
@@ -462,6 +467,10 @@ class RefactoredSessionUI:
         if not self.session_controller.are_prompts_locked():
             self._prompts = value.copy() if value else []
             self.prompt_count = len(self._prompts)
+            
+            # Update start button state when prompts are set
+            if hasattr(self, "state_manager"):
+                self.state_manager.update_start_state()
         else:
             print("Warning: Cannot modify prompts during automation")
 
@@ -613,6 +622,10 @@ class RefactoredSessionUI:
             logger.warning("No coordinate label found for %s", key)
 
         logger.info("Captured coordinate for %s: %s", key, coord)
+        
+        # Update start button state when coordinates change
+        if hasattr(self, "state_manager"):
+            self.state_manager.update_start_state()
 
     def _on_key_up(self) -> None:
         """Handle up key."""

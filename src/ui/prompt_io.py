@@ -498,10 +498,8 @@ class PromptIO:
         """Update preview text."""
         if hasattr(self.ui, "current_box") and self.ui.current_box:
             try:
-                self.ui.current_box.configure(state="normal")
                 self.ui.current_box.delete("1.0", "end")
                 self.ui.current_box.insert("end", str(text))
-                self.ui.current_box.configure(state="disabled")
             except Exception:
                 pass
 

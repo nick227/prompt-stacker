@@ -78,7 +78,7 @@ class CountdownService:
         SIMPLIFIED: Initialize the countdown service with minimal complexity.
         """
         self.ui_widgets = ui_widgets
-        
+
         # SIMPLIFIED: Single lock for all state
         self._lock = threading.Lock()
 
@@ -157,13 +157,16 @@ class CountdownService:
         """
         logger.info(f"Starting countdown for {seconds} seconds")
 
+        # CRITICAL FIX: Preserve pause state when transitioning between countdowns
+        was_paused = self._paused
+        
         # Stop any existing countdown
         self.stop()
 
-        # Reset state
+        # Reset state but preserve pause state if it was set
         with self._lock:
             self._active = True
-            self._paused = False
+            self._paused = was_paused  # Preserve pause state across countdown transitions
             self._cancelled = False
             self.on_countdown_complete = on_complete
 
@@ -175,13 +178,13 @@ class CountdownService:
             target=self._countdown_loop,
             args=(seconds, text, next_text, last_text),
             daemon=True,
-            name="CountdownThread"
+            name="CountdownThread",
         )
         self._thread.start()
 
         # Wait for completion
         self._completion_event.wait(timeout=seconds + 10)
-        
+
         # Get final state
         result = self._get_final_state()
         logger.info(f"Countdown completed with result: {result}")
@@ -192,6 +195,7 @@ class CountdownService:
         with self._lock:
             self._active = False
             self._cancelled = True
+            # CRITICAL FIX: Don't clear pause state when stopping - preserve it for transitions
 
         self._completion_event.set()
 
@@ -250,7 +254,7 @@ class CountdownService:
             self._cancelled = False
             self._paused = False
         self._completion_event.set()
-        
+
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
             self._thread = None
@@ -291,11 +295,11 @@ class CountdownService:
             if not isinstance(remaining, (int, float)) or remaining < 0:
                 logger.warning(f"Invalid remaining time: {remaining}")
                 remaining = 0.0
-            
+
             if not isinstance(total, (int, float)) or total <= 0:
                 logger.warning(f"Invalid total time: {total}")
                 total = 1.0
-            
+
             # Update time display
             if self.time_label:
                 try:
@@ -348,10 +352,10 @@ class CountdownService:
 
     def _set_textbox(self, textbox, text: str) -> None:
         """Set text in a textbox widget."""
-        if hasattr(textbox, 'delete') and hasattr(textbox, 'insert'):
+        if hasattr(textbox, "delete") and hasattr(textbox, "insert"):
             textbox.delete("1.0", tkinter.END)
             textbox.insert("1.0", text)
-        elif hasattr(textbox, 'configure'):
+        elif hasattr(textbox, "configure"):
             textbox.configure(text=text)
 
     def _schedule_ui_update(self, remaining: float, total: float, text: Optional[str], next_text: Optional[str]) -> None:
@@ -398,17 +402,16 @@ class CountdownService:
                     # Track pause start time
                     if pause_start_time is None:
                         pause_start_time = time.time()
-                    
+
                     # Update display to show paused state
                     self._schedule_ui_update(remaining, total, text, next_text)
                     time.sleep(WAIT_TICK)
                     continue
-                else:
-                    # Not paused - update total pause time if we were paused
-                    was_paused = pause_start_time is not None
-                    if pause_start_time is not None:
-                        total_pause_time += time.time() - pause_start_time
-                        pause_start_time = None
+                # Not paused - update total pause time if we were paused
+                was_paused = pause_start_time is not None
+                if pause_start_time is not None:
+                    total_pause_time += time.time() - pause_start_time
+                    pause_start_time = None
 
                 # Check for timeout based on ACTUAL countdown time (excluding pause time)
                 actual_elapsed = time.time() - start_time - total_pause_time
@@ -419,15 +422,9 @@ class CountdownService:
                 # Update display
                 self._schedule_ui_update(remaining, total, text, next_text)
 
-                # SIMPLIFIED: Centralized pause/resume logic
-                if was_paused:
-                    # Brief pause to show unpaused state
-                    time.sleep(0.2)
-                    remaining -= 1.0
-                else:
-                    # Normal countdown
-                    time.sleep(1.0)
-                    remaining -= 1.0
+                # CRITICAL FIX: Proper pause/resume logic - always wait full second
+                time.sleep(1.0)
+                remaining -= 1.0
 
             # Countdown completed
             with self._lock:
