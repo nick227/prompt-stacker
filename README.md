@@ -12,6 +12,8 @@ A powerful, production-ready automation system for Cursor with a beautiful Monok
 - **💾 Persistent Settings**: Saves coordinates and preferences automatically
 - **🎮 User Control**: Pause, skip, retry, and cancel functionality
 
+![screen shot](https://res.cloudinary.com/dh-image/image/upload/v1755619572/Screenshot_2025-08-19_091c339_qqfm1y.png)
+
 ## 🚀 Quick Start
 
 ### Run the Application
