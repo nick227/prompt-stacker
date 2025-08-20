@@ -20,6 +20,8 @@ try:
         BUTTON_START_INACTIVE,
         BUTTON_STOP_ACTIVE,
         BUTTON_STOP_ACTIVE_HOVER,
+        BUTTON_BG,
+        BUTTON_HOVER,
     )
 except ImportError:
     try:
@@ -41,6 +43,8 @@ except ImportError:
         BUTTON_START_INACTIVE = "#666666"
         BUTTON_STOP_ACTIVE = "#cc0000"
         BUTTON_STOP_ACTIVE_HOVER = "#ff3333"
+        BUTTON_BG = "#2B2B2B"
+        BUTTON_HOVER = "#3B3B3B"
 
 
 class UIStateManager:
@@ -326,3 +330,58 @@ class UIStateManager:
                 logger.error("Session controller not available")
         except Exception as e:
             logger.error(f"Error handling stop button click: {e}")
+
+    def update_next_button_state(self) -> None:
+        """Update Next button state based on current automation phase."""
+        try:
+            if not hasattr(self.ui, "next_btn"):
+                return
+
+            # Check if automation is running
+            if (hasattr(self.ui, "session_controller") and 
+                self.ui.session_controller.is_started()):
+                
+                # Enable Next button during automation (temporary disable handled by timer)
+                self.ui.next_btn.configure(
+                    state="normal",
+                    fg_color=BUTTON_BG,
+                    hover_color=BUTTON_HOVER,
+                )
+            else:
+                # Automation not running - disable Next button
+                self.ui.next_btn.configure(
+                    state="disabled",
+                    fg_color="#444444",
+                    hover_color="#444444",
+                )
+        except Exception as e:
+            logger.error(f"Error updating Next button state: {e}")
+
+    def disable_next_button_temporarily(self) -> None:
+        """Disable Next button for 2 seconds to prevent rapid clicking."""
+        try:
+            if not hasattr(self.ui, "next_btn"):
+                return
+
+            # Disable the button immediately
+            self.ui.next_btn.configure(
+                state="disabled",
+                fg_color="#444444",  # Darker gray when disabled
+                hover_color="#444444",
+            )
+
+            # Re-enable after 2 seconds if automation is still running
+            def re_enable_next_button():
+                if (hasattr(self.ui, "session_controller") and 
+                    self.ui.session_controller.is_started()):
+                    self.ui.next_btn.configure(
+                        state="normal",
+                        fg_color=BUTTON_BG,
+                        hover_color=BUTTON_HOVER,
+                    )
+
+            # Schedule re-enable after 2 seconds
+            self.ui.window.after(2000, re_enable_next_button)
+
+        except Exception as e:
+            logger.error(f"Error temporarily disabling Next button: {e}")

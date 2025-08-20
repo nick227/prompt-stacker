@@ -240,15 +240,6 @@ class SessionUI:
         )
         self.section_header.pack(fill="x", padx=PADDING, pady=(5, 0))
 
-        # Add application title on the left (smaller font, shifted in)
-        self.app_title = ctk.CTkLabel(
-            self.section_header,
-            text="Prompt Stacker",
-            font=FONT_BODY,
-            text_color=COLOR_TEXT,
-        )
-        self.app_title.pack(side="left", padx=(10, 0))
-
         # Create toggle button (standard styling)
         self.settings_toggle_btn = ctk.CTkButton(
             self.section_header,
@@ -376,7 +367,6 @@ class SessionUI:
 
             # Update button and label
             self.settings_toggle_btn.configure(text="⚙")
-            self.toggle_label.configure(text="Show Settings")
         else:
             # Show settings column, equal distribution
             self.section_content.grid_columnconfigure(0, weight=1)  # Equal distribution
@@ -388,7 +378,6 @@ class SessionUI:
 
             # Update button and label
             self.settings_toggle_btn.configure(text="⚙")
-            self.toggle_label.configure(text="Hide Settings")
 
         # Update the grid layout
         self.section_content.update_idletasks()
@@ -722,14 +711,21 @@ class SessionUI:
             self._on_prompt_click(self.current_prompt_index)
 
     def _on_start(self) -> None:
-        """Handle start button click."""
+        """Handle start button click with immediate feedback."""
         if hasattr(self, "session_controller"):
             if not self.session_controller.is_started():
+                # Immediately update button to show "Stop" for better UX
+                self.state_manager.update_start_button_to_stop()
                 if self.session_controller.start_automation():
-                    self.state_manager.update_start_button_to_stop()
+                    # Automation started successfully
+                    pass
+                else:
+                    # Failed to start - revert button state
+                    self.state_manager.reset_start_button()
             else:
-                self.session_controller.stop_automation()
+                # Immediately update button to show "Start" for better UX
                 self.state_manager.reset_start_button()
+                self.session_controller.stop_automation()
 
     def _on_stop(self) -> None:
         """Handle stop button click."""

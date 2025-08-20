@@ -357,7 +357,7 @@ class CountdownService:
             if self.next_box:
                 try:
                     safe_next_text = str(next_text) if next_text is not None else ""
-                    next_text_with_prefix = f"Next: {safe_next_text}"
+                    next_text_with_prefix = f"{safe_next_text}"
                     self._set_textbox(self.next_box, next_text_with_prefix)
                 except AttributeError:
                     pass  # No next_box to update

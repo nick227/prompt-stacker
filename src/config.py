@@ -9,7 +9,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 # =============================================================================
 # CONFIGURATION DATACLASSES
@@ -525,27 +525,4 @@ except AttributeError:
 
 # Prompt state constants
 PROMPT_STATE_CURRENT = "current"
-PROMPT_STATE_PREVIOUS = "previous"
-PROMPT_STATE_NEXT = "next"
 PROMPT_STATE_NORMAL = "normal"
-
-# =============================================================================
-# UTILITY FUNCTIONS
-# =============================================================================
-
-
-def get_prompt_row_colors(state: str) -> Tuple[str, str]:
-    """
-    Get background and text colors for a prompt row state.
-
-    Args:
-        state: The prompt row state (current, previous, next, normal)
-
-    Returns:
-        Tuple of (background_color, text_color)
-    """
-    # Simplified: only current item has special styling, all others are standard
-    if state == PROMPT_STATE_CURRENT:
-        return (PROMPT_CURRENT_BG, PROMPT_CURRENT_TEXT)
-    # All other states (previous, next, normal) use the same standard styling
-    return (PROMPT_STANDARD_BG, PROMPT_STANDARD_TEXT)

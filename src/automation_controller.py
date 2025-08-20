@@ -137,7 +137,7 @@ class AutomationController:
         # Configuration tracking
         self._last_config_snapshot = None
         self._config_change_detected = False
-        
+
         # Next button tracking
         self._next_button_pressed = False
 
@@ -180,6 +180,9 @@ class AutomationController:
             self._stop_requested.clear()
             self._pause_requested.clear()
 
+            # Update Next button state (disabled when starting)
+            self._update_next_button_state()
+
             # Start automation thread
             self._automation_thread = threading.Thread(
                 target=self._automation_main_loop,
@@ -221,6 +224,9 @@ class AutomationController:
             self._automation_thread = None
             self._context = None
             self._set_state(AutomationState.IDLE)
+
+            # Update Next button state (disabled when stopped)
+            self._update_next_button_state()
 
             logger.info("Automation stopped")
 
@@ -279,25 +285,20 @@ class AutomationController:
                 logger.warning("Cannot advance prompt - already at last prompt")
                 return False
 
-            # Advance prompt in context
-            old_index = self._context.current_prompt_index
-            if self._context.advance_prompt():
-                new_index = self._context.current_prompt_index
-                logger.info(f"Advanced from prompt {old_index + 1} to {new_index + 1}")
+            # CRITICAL: Stop current countdown to trigger next cycle
+            if self._countdown_service and self._countdown_service.is_active():
+                logger.info("Stopping current countdown to trigger next cycle")
+                self._next_button_pressed = True  # Mark that Next button was pressed
+                self._countdown_service.stop()
 
-                # Update UI
-                self._update_ui_for_current_prompt()
+            # Don't advance prompt here - let the automation loop handle it
+            # This ensures the Ready countdown runs for the next prompt
+            logger.info("Next button pressed - will advance to next prompt after current cycle")
 
-                # Notify progress callbacks
-                self._notify_progress_callbacks(new_index, len(self._context.prompts))
+            # Temporarily disable Next button for 2 seconds to prevent rapid clicking
+            self._temporarily_disable_next_button()
 
-                # CRITICAL: Stop current countdown to trigger next cycle
-                if self._countdown_service and self._countdown_service.is_active():
-                    logger.info("Stopping current countdown to trigger next cycle")
-                    self._next_button_pressed = True  # Mark that Next button was pressed
-                    self._countdown_service.stop()
-
-                return True
+            return True
 
             return False
 
@@ -419,8 +420,25 @@ class AutomationController:
                     logger.warning("Cooldown countdown failed, but continuing to next prompt")
                     # Don't return - continue to next prompt instead of breaking the loop
 
-                # Advance to next prompt (only if not already advanced by Next button)
-                if not self._next_button_pressed and self._context.has_more_prompts():
+                # Advance to next prompt (handle Next button press)
+                if self._next_button_pressed:
+                    # Next button was pressed - advance to next prompt
+                    if self._context.has_more_prompts():
+                        old_index = self._context.current_prompt_index
+                        self._context.advance_prompt()
+                        new_index = self._context.current_prompt_index
+                        self._update_ui_for_current_prompt()
+                        self._notify_progress_callbacks(
+                            self._context.current_prompt_index,
+                            len(self._context.prompts),
+                        )
+                        logger.info(f"Advanced from prompt {old_index + 1} to {new_index + 1} via Next button")
+                        self._next_button_pressed = False  # Reset the flag
+                    else:
+                        logger.info("All prompts completed")
+                        break
+                elif self._context.has_more_prompts():
+                    # Normal advancement (not via Next button)
                     self._context.advance_prompt()
                     self._update_ui_for_current_prompt()
                     self._notify_progress_callbacks(
@@ -429,17 +447,25 @@ class AutomationController:
                     )
                     logger.info(f"Advanced to prompt "
                               f"{self._context.current_prompt_index + 1}")
-                elif not self._context.has_more_prompts():
+                else:
                     logger.info("All prompts completed")
                     break
 
             # Automation completed successfully
             self._set_state(AutomationState.COMPLETED)
+            
+            # Update Next button state (disabled when completed)
+            self._update_next_button_state()
+            
             logger.info("=== AUTOMATION COMPLETED SUCCESSFULLY ===")
 
         except Exception as e:
             logger.error(f"Automation failed with error: {e}")
             self._set_state(AutomationState.FAILED)
+            
+            # Update Next button state (disabled when failed)
+            self._update_next_button_state()
+            
             self._notify_error_callbacks(str(e))
 
         finally:
@@ -472,6 +498,9 @@ class AutomationController:
 
         # Update context
         self._context.current_phase = phase
+
+        # Update Next button state based on current phase
+        self._update_next_button_state()
 
         # Run countdown with integrated pause handling
         result = self._run_countdown_with_pause_handling(duration, text)
@@ -886,3 +915,19 @@ class AutomationController:
                 self.ui.session_controller._update_textareas_for_current_prompt()
         except Exception as e:
             logger.error(f"Error updating UI: {e}")
+
+    def _update_next_button_state(self) -> None:
+        """Update Next button state based on current automation phase."""
+        try:
+            if hasattr(self.ui, "state_manager"):
+                self.ui.state_manager.update_next_button_state()
+        except Exception as e:
+            logger.error(f"Error updating Next button state: {e}")
+
+    def _temporarily_disable_next_button(self) -> None:
+        """Temporarily disable Next button for 2 seconds to prevent rapid clicking."""
+        try:
+            if hasattr(self.ui, "state_manager"):
+                self.ui.state_manager.disable_next_button_temporarily()
+        except Exception as e:
+            logger.error(f"Error temporarily disabling Next button: {e}")

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 import logging
 
 from automator import run_single_prompt_automation
-from ui.session_app import RefactoredSessionUI
+from ui.session_app import SessionUI
 
 # Set up enhanced logging
 logging.basicConfig(
@@ -32,7 +32,7 @@ def main():
     print("🔍 Starting hanging debug test...")
 
     # Create UI with test settings
-    ui = RefactoredSessionUI(
+    ui = SessionUI(
         start_delay=2,
         main_wait=5,
         cooldown=3,

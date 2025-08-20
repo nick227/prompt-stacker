@@ -22,7 +22,6 @@ try:
         BUTTON_HOVER,
         BUTTON_TEXT,
         COLOR_ACCENT,
-        COLOR_ERROR,
         COLOR_SURFACE,
         COLOR_SURFACE_ALT,
         COLOR_TEXT,
@@ -38,7 +37,6 @@ except ImportError:
         BUTTON_HOVER,
         BUTTON_TEXT,
         COLOR_ACCENT,
-        COLOR_ERROR,
         COLOR_SURFACE,
         COLOR_SURFACE_ALT,
         COLOR_TEXT,
@@ -63,11 +61,6 @@ except ImportError:
     # Fallback values if config is not available
     PROMPT_STATE_CURRENT = "current"
     PROMPT_STATE_NORMAL = "normal"
-
-    def get_prompt_row_colors(state):
-        if state == "current":  # Use string literal instead of constant
-            return "#2B2B2B", "#FFFFFF"
-        return "#1E1E1E", "#CCCCCC"
 
 # =============================================================================
 # INLINE PROMPT EDITOR SERVICE
@@ -135,23 +128,8 @@ class InlinePromptEditorService:
         self.toolbar_frame = ctk.CTkFrame(
             self.parent,
             fg_color="transparent",
-            height=40,
         )
         self.toolbar_frame.pack(fill="x", padx=2, pady=(2, 0))
-
-        # Add prompt button
-        self.add_btn = ctk.CTkButton(
-            self.toolbar_frame,
-            text="+ Add Prompt",
-            width=100,
-            height=30,
-            font=FONT_BODY,
-            fg_color=BUTTON_BG,
-            hover_color=BUTTON_HOVER,
-            text_color=BUTTON_TEXT,
-            command=self._add_new_prompt,
-        )
-        self.add_btn.pack(side="left", padx=(0, 0))
 
         # Prompt count label
         self.count_label = ctk.CTkLabel(
@@ -160,12 +138,25 @@ class InlinePromptEditorService:
             font=FONT_BODY,
             text_color=COLOR_TEXT_MUTED,
         )
-        self.count_label.pack(side="right")
+        self.count_label.pack(side="left")
+
+        # Add prompt button
+        self.add_btn = ctk.CTkButton(
+            self.toolbar_frame,
+            text="+ Add Prompt",
+            width=100,
+            height=25,  # Reduced height for more compact toolbar
+            font=FONT_BODY,
+            fg_color=BUTTON_BG,
+            hover_color=BUTTON_HOVER,
+            text_color=BUTTON_TEXT,
+            command=self._add_new_prompt,
+        )
+        self.add_btn.pack(side="right", pady=6)
 
         # Create scrollable frame for prompts
         self.prompt_frame = ctk.CTkScrollableFrame(
             self.parent,
-            height=200,
             fg_color="transparent",
         )
         self.prompt_frame.pack(fill="both", expand=True, padx=2, pady=2)
@@ -276,9 +267,9 @@ class InlinePromptEditorService:
             self.prompt_frame,
             fg_color=COLOR_SURFACE,
             corner_radius=6,
-            height=40,
+            height=35,  # Reduced height for better space utilization
         )
-        row.pack(fill="x", padx=2, pady=1)
+        row.pack(fill="x", padx=2, pady=0.5)  # Reduced padding for tighter spacing
 
         # Create number label
         number_label = ctk.CTkLabel(
@@ -298,7 +289,7 @@ class InlinePromptEditorService:
             fg_color=COLOR_SURFACE_ALT,
             border_width=1,
             border_color=COLOR_TEXT_MUTED,
-            height=30,
+            height=25,  # Reduced height to match row optimization
         )
 
         # Set the initial value
@@ -314,8 +305,8 @@ class InlinePromptEditorService:
             up_btn = ctk.CTkButton(
                 action_frame,
                 text="↑",
-                width=25,
-                height=25,
+                width=22,
+                height=22,
                 font=FONT_BODY,
                 fg_color=COLOR_SURFACE_ALT,
                 hover_color=COLOR_ACCENT,
@@ -328,8 +319,8 @@ class InlinePromptEditorService:
             down_btn = ctk.CTkButton(
                 action_frame,
                 text="↓",
-                width=25,
-                height=25,
+                width=22,
+                height=22,
                 font=FONT_BODY,
                 fg_color=COLOR_SURFACE_ALT,
                 hover_color=COLOR_ACCENT,
@@ -341,10 +332,10 @@ class InlinePromptEditorService:
         delete_btn = ctk.CTkButton(
             action_frame,
             text="×",
-            width=25,
-            height=25,
+            width=22,
+            height=22,
             font=FONT_BODY,
-            fg_color=COLOR_ERROR,
+            fg_color=BUTTON_BG,
             hover_color="#D32F2F",
             command=lambda idx=index: self.remove_prompt(idx),
         )
@@ -652,7 +643,7 @@ class InlinePromptEditorService:
             # Fallback to local logic
             next_prompt = self.get_next_prompt()
             if hasattr(self, "next_box") and self.next_box:
-                next_text_with_prefix = f"Next: {next_prompt}" if next_prompt else ""
+                next_text_with_prefix = f"{next_prompt}" if next_prompt else ""
                 self.next_box.configure(state="normal")
                 self.next_box.delete("1.0", "end")
                 self.next_box.insert("end", next_text_with_prefix)

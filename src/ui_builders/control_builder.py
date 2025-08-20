@@ -139,18 +139,19 @@ class ControlBuilder(BaseUIBuilder):
         )
         self.ui.pause_btn.pack(side="left", padx=(0, GUTTER // 2))
 
-        # Standard Next button (dark gray with green hover)
+        # Standard Next button (dark gray with green hover) - initially disabled
         self.ui.next_btn = ctk.CTkButton(
             buttons_left_frame,
             text=BTN_NEXT,
             width=BUTTON_WIDTH,
             height=36,
             corner_radius=8,
-            fg_color=BUTTON_BG,
-            hover_color=BUTTON_HOVER,
+            fg_color="#444444",  # Darker gray when disabled
+            hover_color="#444444",
             text_color=BUTTON_TEXT,
             font=FONT_BODY,
             command=self.ui._on_next,
+            state="disabled",  # Initially disabled (will be enabled when automation starts)
         )
         self.ui.next_btn.pack(side="left", padx=(0, GUTTER // 2))
 

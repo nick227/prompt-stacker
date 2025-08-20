@@ -197,13 +197,13 @@ class AutomationIntegration:
                 if hasattr(self.ui, "current_box") and self.ui.current_box:
                     self.ui.current_box.configure(state="normal")
                     self.ui.current_box.delete("1.0", "end")
-                    self.ui.current_box.insert("end", f"Current: {current_prompt}")
+                    self.ui.current_box.insert("end", f"{current_prompt}")
                     self.ui.current_box.configure(state="disabled")
 
             # Update next prompt textarea
             next_prompt = self.controller._context.get_next_prompt()
             if hasattr(self.ui, "next_box") and self.ui.next_box:
-                next_text = f"Next: {next_prompt}" if next_prompt else ""
+                next_text = f"{next_prompt}" if next_prompt else ""
                 self.ui.next_box.configure(state="normal")
                 self.ui.next_box.delete("1.0", "end")
                 self.ui.next_box.insert("end", next_text)
