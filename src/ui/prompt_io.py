@@ -45,9 +45,6 @@ class PromptIO:
     def __init__(self, ui):
         """
         Initialize the prompt I/O handler.
-        
-        Args:
-            ui: Reference to the main UI session
         """
         self.ui = ui
         self._prompts_modified = False
@@ -60,7 +57,8 @@ class PromptIO:
             self.file_service = FilePromptService() if FilePromptService else None
 
     def validate_prompt_list(self) -> None:
-        """Validate and load the prompt list from one or more files with enhanced error handling."""
+        """Validate and load the prompt list from one or more files with
+        enhanced error handling."""
         try:
             path_input = self.ui.prompt_path_var.get().strip()
 
@@ -70,6 +68,7 @@ class PromptIO:
                 self._prompts_modified = False
                 self._update_path_entry_border()
                 self._load_default_prompts()
+                self._update_window_title()
                 return
             # Allow legitimate Windows paths but block dangerous patterns
             dangerous_patterns = ["..", "*", "?", '"', "<", ">", "|"]
@@ -92,12 +91,14 @@ class PromptIO:
                 self._prompts_modified = False
                 self._update_path_entry_border()
                 self._update_preview("")
+                self._update_window_title()
         except Exception as e:
             logger.error(f"Error in validate_prompt_list: {e}")
             self._show_error_border(f"Error: {str(e)}")
 
     def browse_prompt_file(self) -> None:
-        """Open file browser to select one or more prompt files with enhanced error handling."""
+        """Open file browser to select one or more prompt files with
+        enhanced error handling."""
         try:
             from tkinter import filedialog
 
@@ -105,11 +106,16 @@ class PromptIO:
             initial_dir = self._get_initial_directory()
             if not initial_dir or not Path(initial_dir).exists():
                 initial_dir = str(Path.cwd())
-                logger.warning(f"Initial directory not found, using current directory: {initial_dir}")
+                logger.warning(
+                    f"Initial directory not found, using current directory: "
+                    f"{initial_dir}",
+                )
 
             # Validate initial directory
             if not Path(initial_dir).is_dir():
-                logger.warning(f"Initial directory is not a valid directory: {initial_dir}")
+                logger.warning(
+                    f"Initial directory is not a valid directory: {initial_dir}",
+                )
                 initial_dir = str(Path.cwd())
 
             # Open file dialog for multiple file selection
@@ -132,7 +138,10 @@ class PromptIO:
                         if Path(file_path).exists() and Path(file_path).is_file():
                             valid_paths.append(file_path)
                         else:
-                            logger.warning(f"Selected file does not exist or is not a file: {file_path}")
+                            logger.warning(
+                                f"Selected file does not exist or is not a "
+                                f"file: {file_path}",
+                            )
                     except Exception as e:
                         logger.warning(f"Error validating file path {file_path}: {e}")
 
@@ -154,6 +163,9 @@ class PromptIO:
 
                 # Validate and load the prompt list
                 self.validate_prompt_list()
+
+                # Update window title with new path
+                self._update_window_title()
         except Exception as e:
             logger.error(f"Error in browse_prompt_file: {e}")
             self._show_error_border(f"Error browsing files: {str(e)}")
@@ -169,11 +181,20 @@ class PromptIO:
                         if Path(last_file).is_file():
                             self.ui.prompt_path_var.set(last_file)
                             if self._load_prompts_from_file(last_file):
-                                logger.info(f"Successfully loaded last prompt file: {last_file}")
+                                logger.info(
+                                    f"Successfully loaded last prompt file: "
+                                    f"{last_file}",
+                                )
+                                self._update_window_title()
                                 return
-                            logger.warning(f"Failed to load last prompt file: {last_file}")
+                            logger.warning(
+                                f"Failed to load last prompt file: {last_file}",
+                            )
                         else:
-                            logger.warning(f"Last prompt file is not a valid file: {last_file}")
+                            logger.warning(
+                                f"Last prompt file is not a valid file: "
+                                f"{last_file}",
+                            )
                     else:
                         logger.info("No last prompt file found or file does not exist")
                 except Exception as e:
@@ -181,17 +202,20 @@ class PromptIO:
 
             # Try to load default prompts directly
             self._load_default_prompts()
+            self._update_window_title()
         except Exception as e:
             logger.error(f"Error in load_last_prompt_file: {e}")
             self._load_default_prompts()
+            self._update_window_title()
 
-    def save_prompts_manually(self, file_path: Optional[str] = None) -> bool:
+    def save_prompts(self, file_path: Optional[str] = None) -> bool:
         """
         Manually save prompts to a file with enhanced error handling.
-        
+
         Args:
-            file_path: Optional file path to save to. If None, uses current file path.
-            
+            file_path: Optional file path to save to. If None, uses current
+            file path.
+
         Returns:
             True if saved successfully, False otherwise.
         """
@@ -242,7 +266,10 @@ class PromptIO:
 
                 success = self.file_service.save_prompts(target_path, valid_prompts)
                 if success:
-                    logger.info(f"Successfully saved {len(valid_prompts)} prompts to {target_path}")
+                    logger.info(
+                        f"Successfully saved {len(valid_prompts)} prompts to "
+                        f"{target_path}",
+                    )
                     self._current_file_path = target_path
                     self._prompts_modified = False
                     self._update_path_entry_border()
@@ -332,7 +359,9 @@ class PromptIO:
 
         # If no last directory or it doesn't exist, try current file directory
         if self.ui.prompt_path_var.get():
-            initial_dir = str(Path(self.ui.prompt_path_var.get().split(";")[0].strip()).parent)
+            initial_dir = str(
+                Path(self.ui.prompt_path_var.get().split(";")[0].strip()).parent,
+            )
             if Path(initial_dir).exists():
                 return initial_dir
 
@@ -369,7 +398,9 @@ class PromptIO:
                 return False
 
             # Split paths by semicolon
-            file_paths = [path.strip() for path in path_input.split(";") if path.strip()]
+            file_paths = [
+                path.strip() for path in path_input.split(";") if path.strip()
+            ]
 
             if not file_paths:
                 logger.error("No valid file paths found")
@@ -382,7 +413,9 @@ class PromptIO:
                     if Path(file_path).exists() and Path(file_path).is_file():
                         valid_paths.append(file_path)
                     else:
-                        logger.warning(f"File does not exist or is not a file: {file_path}")
+                        logger.warning(
+                            f"File does not exist or is not a file: {file_path}",
+                        )
                 except Exception as e:
                     logger.warning(f"Error validating file path {file_path}: {e}")
 
@@ -400,7 +433,10 @@ class PromptIO:
                     if prompts:
                         all_prompts.extend(prompts)
                         successful_files += 1
-                        logger.info(f"Successfully loaded {len(prompts)} prompts from {file_path}")
+                        logger.info(
+                            f"Successfully loaded {len(prompts)} prompts from "
+                            f"{file_path}",
+                        )
                     else:
                         logger.warning(f"No prompts loaded from {file_path}")
                 except Exception as e:
@@ -430,7 +466,13 @@ class PromptIO:
 
             # Update UI components
             self._update_path_entry_border(COLOR_SUCCESS)
-            self._update_preview(f"Loaded {len(valid_prompts)} prompts from {successful_files} files")
+            self._update_preview(
+                f"Loaded {len(valid_prompts)} prompts from {successful_files} "
+                f"files",
+            )
+
+            # Update window title with new path
+            self._update_window_title()
 
             # Update prompt list service if available
             if hasattr(self.ui, "prompt_list_service"):
@@ -440,7 +482,10 @@ class PromptIO:
                 except Exception as e:
                     logger.warning(f"Error updating prompt list service: {e}")
 
-            logger.info(f"Successfully loaded {len(valid_prompts)} prompts from {successful_files} files")
+            logger.info(
+                f"Successfully loaded {len(valid_prompts)} prompts from "
+                f"{successful_files} files",
+            )
             return True
 
         except Exception as e:
@@ -476,6 +521,7 @@ class PromptIO:
         else:
             # If file doesn't exist, create a basic default
             self._create_default_prompts()
+            self._update_window_title()
 
     def _create_default_prompts(self) -> None:
         """Create a basic default prompt list if none exists."""
@@ -528,3 +574,11 @@ class PromptIO:
             logger.error(f"File loading error: {message}")
         except Exception as e:
             logger.error(f"Error showing error border: {e}")
+
+    def _update_window_title(self) -> None:
+        """Update window title to show current valid path."""
+        try:
+            if hasattr(self.ui, "_update_window_title"):
+                self.ui._update_window_title()
+        except Exception as e:
+            logger.warning(f"Error updating window title: {e}")

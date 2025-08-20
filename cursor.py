@@ -66,23 +66,7 @@ def validate_environment() -> dict:
     }
 
 
-def cleanup_previous_sessions():
-    """Clean up any leftover state from previous sessions."""
-    try:
-        # Kill any existing Python processes that might be running this app
-        import psutil
-        current_pid = os.getpid()
-        for proc in psutil.process_iter(["pid", "name", "cmdline"]):
-            try:
-                if (proc.info["name"] == "python.exe" and
-                    proc.info["pid"] != current_pid and
-                    any("cursor.py" in cmd for cmd in proc.info["cmdline"] if cmd)):
-                    proc.terminate()
-                    log_info(f"Terminated previous session: PID {proc.info['pid']}")
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-    except ImportError:
-        log_info("psutil not available - skipping process cleanup")
+
 
 
 def main():
@@ -101,9 +85,6 @@ def main():
             for warning in env_check["warnings"]:
                 print(f"  - {warning}")
 
-        # Clean up previous sessions
-        cleanup_previous_sessions()
-
         # Validate configuration
         validation = config.validate_config()
         if not validation["valid"]:
@@ -120,8 +101,8 @@ def main():
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                from src.ui import RefactoredSessionUI
-                ui = RefactoredSessionUI(default_start=5, default_main=500, default_cooldown=0.2)
+                from src.ui import SessionUI
+                ui = SessionUI(default_start=5)
                 break
             except Exception as e:
                 if attempt == max_retries - 1:

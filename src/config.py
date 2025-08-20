@@ -239,7 +239,8 @@ class ConfigManager:
 
             return str(default_path.absolute())
         except (OSError, ValueError):
-            return f"{self.file.default_prompt_list_dir}/{self.file.default_prompt_list_file}"
+            return (f"{self.file.default_prompt_list_dir}/"
+                   f"{self.file.default_prompt_list_file}")
 
     def get_settings_file_path(self) -> str:
         """Get the settings file path."""

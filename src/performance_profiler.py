@@ -84,11 +84,9 @@ class PerformanceProfiler:
         Returns:
             Function result
         """
-        thread_id = threading.get_ident()
-        # profile_id = f"{thread_id}_{func_name}"  # Unused variable
+        start_time = time.time()
 
         # Record start time and memory
-        start_time = time.perf_counter()
         memory_before = self._get_memory_usage()
 
         # Execute function
@@ -101,7 +99,7 @@ class PerformanceProfiler:
             raise
         finally:
             # Record end time and memory
-            end_time = time.perf_counter()
+            end_time = time.time()
             memory_after = self._get_memory_usage()
 
             # Calculate metrics
@@ -125,7 +123,7 @@ class PerformanceProfiler:
         try:
             process = psutil.Process()
             return process.memory_info().rss / 1024 / 1024
-        except:
+        except Exception:
             return 0.0
 
     def _update_stats(
@@ -290,7 +288,8 @@ def print_performance_report() -> None:
         print("\n🐌 SLOWEST FUNCTIONS:")
         for func in slowest:
             print(
-                f"  {func['function']}: {func['avg_time_ms']:.2f}ms avg ({func['calls']} calls)",
+                f"  {func['function']}: {func['avg_time_ms']:.2f}ms avg "
+                f"({func['calls']} calls)",
             )
 
     # Memory intensive functions
@@ -299,7 +298,8 @@ def print_performance_report() -> None:
         print("\n💾 MEMORY INTENSIVE FUNCTIONS:")
         for func in memory_intensive:
             print(
-                f"  {func['function']}: {func['memory_delta_mb']:.2f}MB avg ({func['calls']} calls)",
+                f"  {func['function']}: {func['memory_delta_mb']:.2f}MB avg "
+                f"({func['calls']} calls)",
             )
 
     # Overall stats
@@ -325,7 +325,8 @@ def print_performance_report() -> None:
             print(f"  Object reuses: {pool_stats.get('reuses', 0)}")
             for pool_name, pool_info in pool_stats["pools"].items():
                 print(
-                    f"  {pool_name}: {pool_info['size']}/{pool_info['max_size']} objects",
+                    f"  {pool_name}: {pool_info['size']}/{pool_info['max_size']} "
+                    f"objects",
                 )
     except ImportError:
         pass  # Memory pool not available

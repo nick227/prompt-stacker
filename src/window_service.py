@@ -88,7 +88,7 @@ class WindowService:
         # Configure window icon (if available)
         try:
             self.window.iconbitmap("icon.ico")
-        except:
+        except Exception:
             pass  # Icon not available
 
     def center_window(self) -> None:

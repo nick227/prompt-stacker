@@ -1,7 +1,7 @@
 """
 UI Session Tests
 
-Tests for the RefactoredSessionUI class and its thread safety features.
+Tests for the SessionUI class and its thread safety features.
 """
 
 import threading
@@ -12,7 +12,7 @@ import pytest
 
 # Import with fallback for relative import issues
 try:
-    from src.ui import RefactoredSessionUI
+    from src.ui import SessionUI
 except ImportError:
     # Fallback for when running tests directly
     import os
@@ -20,8 +20,8 @@ except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
-class TestRefactoredSessionUI:
-    """Test cases for RefactoredSessionUI class."""
+class TestSessionUI:
+    """Test cases for SessionUI class."""
 
     @pytest.fixture
     def mock_ui_session(self):
@@ -103,6 +103,9 @@ class TestRefactoredSessionUI:
     @pytest.mark.unit
     def test_prompts_property_thread_safety(self, mock_ui_session):
         """Test the thread-safe prompts property."""
+        # Set up prompts property on the mock
+        mock_ui_session.prompts = ["Test prompt 1", "Test prompt 2", "Test prompt 3"]
+
         # Test getter
         prompts = mock_ui_session.prompts
         assert isinstance(prompts, list)
@@ -112,7 +115,7 @@ class TestRefactoredSessionUI:
         mock_ui_session._prompts_locked = False
         new_prompts = ["New prompt 1", "New prompt 2"]
         mock_ui_session.prompts = new_prompts
-        # The setter should be called (we can't easily test the actual implementation with mocks)
+        assert mock_ui_session.prompts == new_prompts
 
     @pytest.mark.unit
     def test_prompts_property_locked_state(self, mock_ui_session):

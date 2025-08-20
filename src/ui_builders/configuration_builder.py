@@ -12,6 +12,7 @@ try:
         BUTTON_BG,
         BUTTON_HOVER,
         BUTTON_TEXT,
+        CARD_RADIUS,
         COLOR_BG,
         COLOR_BORDER,
         COLOR_ERROR,
@@ -21,41 +22,42 @@ try:
         COLOR_TEXT_MUTED,
         FONT_BODY,
         FONT_H1,
+        FONT_H2,
         GUTTER,
         LABELS,
         PADDING,
-        SECTION_RADIUS,
         TARGET_KEYS,
-        WINDOW_MARGIN,
     )
     from .base_builder import BaseUIBuilder
 except ImportError:
-    # Fallback for when running as script
-    import sys
-    from pathlib import Path
+    # Fallback values if config is not available
+    BUTTON_BG = "#2B2B2B"
+    BUTTON_HOVER = "#3B3B3B"
+    BUTTON_TEXT = "#FFFFFF"
+    CARD_RADIUS = 8
+    COLOR_BG = "#1E1E1E"
+    COLOR_BORDER = "#404040"
+    COLOR_ERROR = "#FF4444"
+    COLOR_SUCCESS = "#44FF44"
+    COLOR_SURFACE = "#2B2B2B"
+    COLOR_TEXT = "#FFFFFF"
+    COLOR_TEXT_MUTED = "#888888"
+    FONT_BODY = ("Segoe UI", 10)
+    FONT_H1 = ("Segoe UI", 16, "bold")
+    FONT_H2 = ("Segoe UI", 14, "bold")
+    GUTTER = 20
+    LABELS = {}
+    PADDING = 10
+    TARGET_KEYS = []
 
-    # Add src directory to path for imports
-    sys.path.insert(0, str(Path(__file__).parent.parent))
-
-    from config import (
-        BUTTON_BG,
-        BUTTON_HOVER,
-        BUTTON_TEXT,
-        COLOR_BG,
-        COLOR_BORDER,
-        COLOR_ERROR,
-        COLOR_SUCCESS,
-        COLOR_SURFACE,
-        COLOR_TEXT,
-        COLOR_TEXT_MUTED,
-        FONT_BODY,
-        FONT_H1,
-        GUTTER,
-        LABELS,
-        PADDING,
-        TARGET_KEYS,
-    )
-    from ui_builders.base_builder import BaseUIBuilder
+    # Fallback for BaseUIBuilder import
+    try:
+        from .base_builder import BaseUIBuilder
+    except ImportError:
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent))
+        from base_builder import BaseUIBuilder
 
 
 class ConfigurationBuilder(BaseUIBuilder):
@@ -195,7 +197,9 @@ class ConfigurationBuilder(BaseUIBuilder):
         info_text = """
 Welcome to Prompt Stacker!
 
-This automation tool helps you automate repetitive text input tasks by cycling through a list of prompts and automatically pasting them into target applications.
+This automation tool helps you automate repetitive text input tasks by
+cycling through a list of prompts and automatically pasting them into
+target applications.
 
 HOW TO USE:
 1. Set up your target coordinates by clicking "Capture" buttons
@@ -277,7 +281,8 @@ TIPS:
         if not path_input:
             self.ui._update_path_entry_border(COLOR_BORDER)  # Default border color
             # Load default prompts without setting a path
-            self.ui._load_default_prompts()
+            if hasattr(self.ui, "prompt_io"):
+                self.ui.prompt_io._load_default_prompts()
             return
 
         # Path has content, validate it (support multiple files)

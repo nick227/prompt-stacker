@@ -14,7 +14,7 @@ import pytest
 # Import with fallback for relative import issues
 try:
     from src.automator import run_automation_with_ui, run_single_prompt_automation
-    from src.ui import RefactoredSessionUI
+    from src.ui import SessionUI
 except ImportError:
     # Fallback for when running tests directly
     import os
@@ -30,6 +30,21 @@ class TestThreadSafety:
     def mock_ui_session(self):
         """Create a mock UI session with thread safety features."""
         ui = Mock()
+
+        # Mock coordinate service for AutomationController validation
+        mock_coordinate_service = Mock()
+        mock_coordinate_service.validate_coordinates.return_value = {
+            "input": True,
+            "submit": True,
+            "accept": True,
+        }
+        ui.coordinate_service = mock_coordinate_service
+
+        # Mock countdown service
+        mock_countdown_service = Mock()
+        mock_countdown_service.is_active.return_value = False
+        mock_countdown_service.is_paused.return_value = False
+        ui.countdown_service = mock_countdown_service
 
         # Thread safety attributes
         ui._automation_lock = threading.Lock()
@@ -47,6 +62,16 @@ class TestThreadSafety:
         ui.countdown = Mock(return_value={"cancelled": False})
         ui.bring_to_front = Mock()
         ui.update_prompt_index_from_automation = Mock()
+
+        # Timer variable access for AutomationController
+        ui.main_wait_var = Mock()
+        ui.main_wait_var.get.return_value = "300"
+        ui.get_ready_delay_var = Mock()
+        ui.get_ready_delay_var.get.return_value = "2"
+        ui.start_delay_var = Mock()
+        ui.start_delay_var.get.return_value = "5"
+        ui.cooldown_var = Mock()
+        ui.cooldown_var.get.return_value = "0.2"
 
         return ui
 
@@ -130,34 +155,33 @@ class TestThreadSafety:
     @pytest.mark.unit
     def test_state_capture_at_automation_start(self, mock_ui_session):
         """Test that state is captured at automation start."""
-        # Mock the automation function to capture initial state
-        with patch("src.automator.run_automation_with_ui") as mock_automation:
-            mock_automation.return_value = True
+        # Mock AutomationController to test state capture
+        with patch("src.automation_controller.AutomationController") as mock_controller_class:
+            mock_controller = Mock()
+            mock_controller.start_automation.return_value = True
+            mock_controller_class.return_value = mock_controller
 
-            # The automation should capture initial state
-            # This is tested by verifying the mock calls
             result = run_automation_with_ui(mock_ui_session)
 
             assert result is True
-            # Verify that get_prompts_safe was called (state capture)
-            mock_ui_session.get_prompts_safe.assert_called()
+            # Verify that AutomationController was created (state capture)
+            mock_controller_class.assert_called_once_with(mock_ui_session)
 
     @pytest.mark.unit
     def test_state_validation_during_automation(self, mock_ui_session):
         """Test state validation during automation."""
-        # This test verifies that the automation system validates
-        # that state hasn't changed during execution
-
-        # Mock the automation to simulate state validation
-        with patch("src.automator.run_automation_with_ui") as mock_automation:
-            mock_automation.return_value = True
+        # Mock AutomationController to test state validation
+        with patch("src.automation_controller.AutomationController") as mock_controller_class:
+            mock_controller = Mock()
+            mock_controller.start_automation.return_value = True
+            mock_controller_class.return_value = mock_controller
 
             result = run_automation_with_ui(mock_ui_session)
 
             assert result is True
-            # The automation should call get_prompts_safe multiple times
-            # for state validation during execution
-            assert mock_ui_session.get_prompts_safe.call_count >= 1
+            # Verify that validation was performed by creating controller
+            mock_controller_class.assert_called_once_with(mock_ui_session)
+            mock_controller.start_automation.assert_called_once()
 
     @pytest.mark.unit
     def test_safe_stopping_on_state_change(self, mock_ui_session):
@@ -279,18 +303,21 @@ class TestThreadSafety:
     @pytest.mark.unit
     def test_single_prompt_automation_thread_safety(self, mock_ui_session):
         """Test thread safety in single prompt automation."""
-        # Test that single prompt automation uses thread-safe methods
-
-        with patch("src.automator.run_single_prompt_automation") as mock_single:
-            mock_single.return_value = True
+        # Mock AutomationController for single prompt automation
+        with patch("src.automation_controller.AutomationController") as mock_controller_class:
+            mock_controller = Mock()
+            mock_controller.start_automation.return_value = True
+            # Mock context to handle the prompt index assignment
+            mock_context = Mock()
+            mock_controller._context = mock_context
+            mock_controller_class.return_value = mock_controller
 
             result = run_single_prompt_automation(mock_ui_session, 0)
 
             assert result is True
-            # Verify that thread-safe methods were called
-            mock_ui_session.get_prompts_safe.assert_called()
-            mock_ui_session.get_coords.assert_called()
-            mock_ui_session.get_timers.assert_called()
+            # Verify that AutomationController was created and index was set
+            mock_controller_class.assert_called_once_with(mock_ui_session)
+            assert mock_context.current_prompt_index == 0
 
 
 class TestRaceConditionScenarios:

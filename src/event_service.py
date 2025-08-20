@@ -14,10 +14,10 @@ from typing import Callable, Dict, Optional
 from pynput import keyboard
 
 try:
-    from .config import COLOR_PRIMARY, COLOR_TEXT_MUTED
+    from .config import COLOR_TEXT
 except ImportError:
     # Fallback for when running as script
-    pass
+    COLOR_TEXT = "#FFFFFF"
 
 # =============================================================================
 # EVENT HANDLING SERVICE

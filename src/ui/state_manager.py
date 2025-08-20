@@ -51,16 +51,15 @@ class UIStateManager:
     def __init__(self, ui):
         """
         Initialize the UI state manager.
-        
-        Args:
-            ui: Reference to the main UI session
         """
         self.ui = ui
 
     def update_start_state(self) -> None:
         """Update start button state based on current conditions."""
-        # Don't update button if automation is running - let the button handlers manage it
-        if hasattr(self.ui, "session_controller") and self.ui.session_controller.is_started():
+        # Don't update button if automation is running - let the button
+        # handlers manage it
+        if (hasattr(self.ui, "session_controller") and
+            self.ui.session_controller.is_started()):
             return
 
         # Check if start button exists
@@ -132,11 +131,15 @@ class UIStateManager:
 
                     # Fix button state mismatch
                     if is_started and current_text == "Start":
-                        logger.info("Detected button state mismatch - fixing start button")
+                        logger.info(
+                            "Detected button state mismatch - fixing start button",
+                        )
                         self.update_start_button_to_stop()
                         return True
                     if not is_started and current_text == "Stop":
-                        logger.info("Detected button state mismatch - fixing start button")
+                        logger.info(
+                            "Detected button state mismatch - fixing start button",
+                        )
                         self.reset_start_button()
                         return True
                 except Exception as e:
@@ -157,7 +160,8 @@ class UIStateManager:
         try:
             if (isinstance(index, int) and index >= 0 and
                 hasattr(self.ui, "prompts") and index < len(self.ui.prompts) and
-                hasattr(self.ui, "session_controller") and not self.ui.session_controller.is_started()):
+                hasattr(self.ui, "session_controller") and
+                not self.ui.session_controller.is_started()):
                 self.ui.current_prompt_index = index
                 logger.info(f"Prompt clicked: index {index}")
         except Exception as e:
@@ -237,8 +241,11 @@ class UIStateManager:
             return None
 
     def get_next_prompt(self) -> Optional[str]:
-        """Get next prompt text with validation."""
+        """Get next prompt text - delegated to centralized controller."""
         try:
+            if hasattr(self.ui, "session_controller"):
+                return (self.ui.session_controller.controller._context.get_next_prompt()
+                       if self.ui.session_controller.controller._context else None)
             if hasattr(self.ui, "prompt_list_service"):
                 return self.ui.prompt_list_service.get_next_prompt()
             if hasattr(self.ui, "prompts") and hasattr(self.ui, "current_prompt_index"):
@@ -253,12 +260,20 @@ class UIStateManager:
     def _timers_valid(self) -> bool:
         """Validate timer values with enhanced error handling."""
         try:
-            if not hasattr(self.ui, "main_wait_var") or not hasattr(self.ui, "get_ready_delay_var"):
+            if (not hasattr(self.ui, "main_wait_var") or
+                not hasattr(self.ui, "get_ready_delay_var")):
                 logger.warning("Timer variables not available")
                 return False
 
-            main_wait = float(self.ui.main_wait_var.get())
-            get_ready = float(self.ui.get_ready_delay_var.get())
+            main_wait_str = self.ui.main_wait_var.get().strip()
+            get_ready_str = self.ui.get_ready_delay_var.get().strip()
+
+            # Handle empty strings by treating them as invalid but not warning
+            if not main_wait_str or not get_ready_str:
+                return False
+
+            main_wait = float(main_wait_str)
+            get_ready = float(get_ready_str)
 
             # BULLETPROOF IMPROVEMENT: Check for reasonable values
             if main_wait < 0 or get_ready < 0:
@@ -271,14 +286,18 @@ class UIStateManager:
 
             return True
         except ValueError as e:
-            logger.warning(f"Invalid timer values: {e}")
+            # Only log warning if it's not an empty string issue
+            main_wait_str = self.ui.main_wait_var.get().strip() if hasattr(self.ui, "main_wait_var") else ""
+            get_ready_str = self.ui.get_ready_delay_var.get().strip() if hasattr(self.ui, "get_ready_delay_var") else ""
+            if main_wait_str and get_ready_str:
+                logger.warning(f"Invalid timer values: {e}")
             return False
         except Exception as e:
             logger.error(f"Error validating timers: {e}")
             return False
 
     def _on_start(self) -> None:
-        """Handle start button click with enhanced error handling."""
+        """Handle start button click - delegated to centralized controller."""
         try:
             if hasattr(self.ui, "session_controller"):
                 if not self.ui.session_controller.is_started():
@@ -297,7 +316,7 @@ class UIStateManager:
             logger.error(f"Error handling start button click: {e}")
 
     def _on_stop(self) -> None:
-        """Handle stop button click with enhanced error handling."""
+        """Handle stop button click - delegated to centralized controller."""
         try:
             if hasattr(self.ui, "session_controller"):
                 self.ui.session_controller.stop_automation()

@@ -34,7 +34,8 @@ except ImportError:
 
 
 class PromptListService:
-    """Orchestrator service for managing prompt list files with multiple format support."""
+    """Orchestrator service for managing prompt list files with multiple
+    format support."""
 
     def __init__(self):
         """Initialize the prompt list service with dedicated sub-services."""
@@ -182,5 +183,6 @@ class PromptListService:
         return self.path_service.validate_file_path(file_path)
 
     def _create_directory_if_needed(self, file_path: str) -> bool:
-        """Create directory for file if it doesn't exist (for backward compatibility)."""
+        """Create directory for file if it doesn't exist (for backward
+        compatibility)."""
         return self.path_service.create_directory_if_needed(file_path)

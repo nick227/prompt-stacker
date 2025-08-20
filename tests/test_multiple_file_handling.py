@@ -14,7 +14,7 @@ import pytest
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ui.session_app import RefactoredSessionUI
+from ui.session_app import SessionUI
 
 
 class TestMultipleFileHandling:
@@ -60,7 +60,7 @@ class TestMultipleFileHandling:
                 mock_window.quit = Mock()
                 mock_window.destroy = Mock()
 
-                ui = RefactoredSessionUI(default_start=5, default_main=500, default_cooldown=0.2)
+                ui = SessionUI(default_start=5)
                 yield ui
 
                 # Cleanup
@@ -415,7 +415,7 @@ class TestMultipleFileHandlingIntegration:
                 mock_window.destroy = Mock()
 
                 # Create UI instance
-                ui = RefactoredSessionUI(default_start=5, default_main=500, default_cooldown=0.2)
+                ui = SessionUI(default_start=5)
 
                 # Create test files with different content
                 prompts1 = ["Hello", "World"]

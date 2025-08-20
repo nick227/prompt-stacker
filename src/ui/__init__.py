@@ -1,7 +1,15 @@
 """
-prompt stacker v1.0.0
+UI module for the automation system.
 """
 
-from .session_app import RefactoredSessionUI
+from .prompt_io import PromptIO
+from .session_app import SessionUI
+from .session_controller import SessionController
+from .state_manager import UIStateManager
 
-__all__ = ["RefactoredSessionUI"]
+__all__ = [
+    "SessionUI",
+    "UIStateManager",
+    "PromptIO",
+    "SessionController",
+]

@@ -1,8 +1,10 @@
 """
 Inline Prompt Editor Service
 
-This module provides inline prompt editing functionality for the main automation dialog.
-Allows users to edit prompts directly in the prompt list with real-time updates and throttling.
+This module provides inline prompt editing functionality for the main
+automation dialog.
+Allows users to edit prompts directly in the prompt list with real-time
+updates and throttling.
 
 Author: Automation System
 Version: 1.0
@@ -15,12 +17,34 @@ from typing import Callable, Dict, List, Optional
 import customtkinter as ctk
 
 try:
-    from .config import *
+    from .config import (
+        BUTTON_BG,
+        BUTTON_HOVER,
+        BUTTON_TEXT,
+        COLOR_ACCENT,
+        COLOR_ERROR,
+        COLOR_SURFACE,
+        COLOR_SURFACE_ALT,
+        COLOR_TEXT,
+        COLOR_TEXT_MUTED,
+        FONT_BODY,
+    )
     from .memory_pool import get_dict, get_list, return_dict, return_list
     from .performance_profiler import profile
 except ImportError:
     # Fallback for when running as script
-    from config import *
+    from config import (
+        BUTTON_BG,
+        BUTTON_HOVER,
+        BUTTON_TEXT,
+        COLOR_ACCENT,
+        COLOR_ERROR,
+        COLOR_SURFACE,
+        COLOR_SURFACE_ALT,
+        COLOR_TEXT,
+        COLOR_TEXT_MUTED,
+        FONT_BODY,
+    )
 
     try:
         from memory_pool import get_dict, get_list, return_dict, return_list
@@ -28,10 +52,22 @@ except ImportError:
     except ImportError:
         # Fallback if memory pool is not available
         get_list = list
-        return_list = lambda x: None
+        def return_list(x): pass
         get_dict = dict
-        return_dict = lambda x: None
-        profile = lambda func_name=None: lambda f: f  # No-op decorator
+        def return_dict(x): pass
+        def profile(func_name=None):
+            def decorator(f):
+                return f
+            return decorator
+
+    # Fallback values if config is not available
+    PROMPT_STATE_CURRENT = "current"
+    PROMPT_STATE_NORMAL = "normal"
+
+    def get_prompt_row_colors(state):
+        if state == "current":  # Use string literal instead of constant
+            return "#2B2B2B", "#FFFFFF"
+        return "#1E1E1E", "#CCCCCC"
 
 # =============================================================================
 # INLINE PROMPT EDITOR SERVICE
@@ -150,7 +186,10 @@ class InlinePromptEditorService:
         self.prompts = get_list()
         self.prompts.extend(prompts)  # Add prompts to pooled list
         self.prompt_count = len(prompts)
-        self.current_prompt_index = 0
+
+        # Preserve current prompt index if it's still valid, otherwise reset to 0
+        if self.current_prompt_index >= len(prompts):
+            self.current_prompt_index = 0
 
         # Clear existing rows
         self._clear_prompt_list()
@@ -158,8 +197,6 @@ class InlinePromptEditorService:
         # Build new prompt rows
         if prompts:
             self._build_dynamic_prompt_list()
-        else:
-            pass
 
         # Update count label
         self._update_count_label()
@@ -504,17 +541,21 @@ class InlinePromptEditorService:
 
         row = self.prompt_rows[index]
 
-        # Simplified logic: only current item gets special styling during automation
-        if self.is_automation_running and index == self.current_prompt_index:
-            state = PROMPT_STATE_CURRENT
-        else:
-            state = PROMPT_STATE_NORMAL
+        # Determine the state based on automation status and current index
+        is_current_item = (index == self.current_prompt_index)
 
-        # Apply colors
-        bg_color, text_color = get_prompt_row_colors(state)
+        # Apply colors based on state
+        if self.is_automation_running and is_current_item:
+            # Current item during automation - highlight it
+            bg_color, text_color = "#2B2B2B", "#FFFFFF"  # Dark gray background, white text
+        else:
+            # Normal state - all items have transparent/normal styling
+            bg_color, text_color = "transparent", "#CCCCCC"  # Transparent background, light gray text
+
+        # Apply the colors
         row.configure(fg_color=bg_color)
 
-        # Update text colors
+        # Update text colors for labels and entries
         if index in self.prompt_labels:
             self.prompt_labels[index].configure(text_color=text_color)
         if index in self.prompt_entries:
@@ -541,6 +582,7 @@ class InlinePromptEditorService:
         Args:
             running: Whether automation is running
         """
+
         self.is_automation_running = running
         self._update_all_highlighting()
 
@@ -584,25 +626,31 @@ class InlinePromptEditorService:
 
     def get_next_prompt(self) -> Optional[str]:
         """
-        Get the next prompt text based on current index.
-        
-        Returns:
-            Next prompt text or None if no next prompt
+        Get the next prompt text - delegated to centralized controller.
         """
+        # Try to get from centralized controller first
+        if hasattr(self, "ui") and hasattr(self.ui, "session_controller"):
+            return (self.ui.session_controller.controller._context.get_next_prompt()
+                   if self.ui.session_controller.controller._context else None)
+
+        # Fallback to local logic
         if self.current_prompt_index < len(self.prompts) - 1:
             return self.prompts[self.current_prompt_index + 1]
         return None
 
     def refresh_next_prompt_display(self) -> None:
         """
-        Refresh the next prompt display in the UI.
+        Refresh the next prompt display - delegated to centralized controller.
         This should be called when prompts are modified to update the 'Next:' textarea.
         """
         try:
-            # Get the next prompt text
-            next_prompt = self.get_next_prompt()
+            # Try to use centralized controller first
+            if hasattr(self, "ui") and hasattr(self.ui, "session_controller"):
+                self.ui.session_controller._update_textareas_for_current_prompt()
+                return
 
-            # Update the next prompt display if it exists
+            # Fallback to local logic
+            next_prompt = self.get_next_prompt()
             if hasattr(self, "next_box") and self.next_box:
                 next_text_with_prefix = f"Next: {next_prompt}" if next_prompt else ""
                 self.next_box.configure(state="normal")

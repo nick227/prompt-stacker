@@ -43,7 +43,8 @@ class CursorWindow:
                 self.window.set_focus()
                 self._click_center()
                 time.sleep(delay_seconds)
-                # Consider success after actions; some wrappers don't expose has_focus reliably
+                # Consider success after actions; some wrappers don't expose
+                # has_focus reliably
                 return True
             except Exception:
                 # Reset window and retry connect on next iteration

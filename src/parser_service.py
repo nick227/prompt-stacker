@@ -174,7 +174,8 @@ class ParserService:
                 if prompts:
                     return True, prompts
 
-            # Strategy 2: Try custom delimiters (only if double-line separation didn't work)
+            # Strategy 2: Try custom delimiters (only if double-line separation
+            # didn't work)
             if "\n\n" not in content:
                 delimiters = ["---", "===", "***", "###"]
                 for delimiter in delimiters:
@@ -234,7 +235,8 @@ class ParserService:
             if lines[0].strip().lower() in ["index,prompt", "prompt", "prompts"]:
                 lines = lines[1:]  # Skip header
             elif "," in lines[0] and not lines[0].strip().startswith('"'):
-                # If first line contains comma but doesn't start with quote, it might be a header
+                # If first line contains comma but doesn't start with quote,
+                # it might be a header
                 # Check if second line also contains comma (indicating data)
                 if len(lines) > 1 and "," in lines[1]:
                     lines = lines[1:]  # Skip header
@@ -314,7 +316,8 @@ class ParserService:
 
         return (
             False,
-            "Unable to parse file. Expected Python array, line-separated, or comma-separated format.",
+            "Unable to parse file. Expected Python array, line-separated, or "
+            "comma-separated format.",
         )
 
     def _try_parse_python_array(self, content: str) -> Optional[List[str]]:

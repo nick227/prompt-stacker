@@ -98,6 +98,9 @@ class CountdownService:
         # Callback for countdown completion
         self.on_countdown_complete: Optional[Callable[[Dict[str, Any]], None]] = None
 
+        # CRITICAL FIX: Add callback for UI state updates when pause state changes
+        self.on_pause_state_changed: Optional[Callable[[bool], None]] = None
+
     @property
     def countdown_active(self) -> bool:
         """Thread-safe access to active state."""
@@ -159,14 +162,15 @@ class CountdownService:
 
         # CRITICAL FIX: Preserve pause state when transitioning between countdowns
         was_paused = self._paused
-        
+
         # Stop any existing countdown
         self.stop()
 
         # Reset state but preserve pause state if it was set
         with self._lock:
             self._active = True
-            self._paused = was_paused  # Preserve pause state across countdown transitions
+            self._paused = was_paused  # Preserve pause state across countdown
+            # transitions
             self._cancelled = False
             self.on_countdown_complete = on_complete
 
@@ -195,7 +199,8 @@ class CountdownService:
         with self._lock:
             self._active = False
             self._cancelled = True
-            # CRITICAL FIX: Don't clear pause state when stopping - preserve it for transitions
+            # CRITICAL FIX: Don't clear pause state when stopping - preserve it
+            # for transitions
 
         self._completion_event.set()
 
@@ -229,6 +234,15 @@ class CountdownService:
                     )
         except (AttributeError, tkinter.TclError) as e:
             logger.error(f"Error updating pause button: {e}")
+
+        # CRITICAL FIX: Trigger UI state update callback when pause state changes
+        if self.on_pause_state_changed:
+            try:
+                self.on_pause_state_changed(self._paused)
+                logger.info(f"Triggered UI state update callback - paused: "
+                          f"{self._paused}")
+            except Exception as e:
+                logger.error(f"Error in pause state change callback: {e}")
 
     def cancel(self) -> None:
         """Cancel the countdown."""
@@ -358,7 +372,8 @@ class CountdownService:
         elif hasattr(textbox, "configure"):
             textbox.configure(text=text)
 
-    def _schedule_ui_update(self, remaining: float, total: float, text: Optional[str], next_text: Optional[str]) -> None:
+    def _schedule_ui_update(self, remaining: float, total: float,
+                          text: Optional[str], next_text: Optional[str]) -> None:
         """Update UI display directly."""
         self._update_display(remaining, total, text, next_text)
 
@@ -408,12 +423,12 @@ class CountdownService:
                     time.sleep(WAIT_TICK)
                     continue
                 # Not paused - update total pause time if we were paused
-                was_paused = pause_start_time is not None
                 if pause_start_time is not None:
                     total_pause_time += time.time() - pause_start_time
                     pause_start_time = None
 
-                # Check for timeout based on ACTUAL countdown time (excluding pause time)
+                # Check for timeout based on ACTUAL countdown time (excluding
+                # pause time)
                 actual_elapsed = time.time() - start_time - total_pause_time
                 if actual_elapsed > total + 60:  # Allow 1 minute extra for safety
                     logger.error("Countdown timeout reached")
