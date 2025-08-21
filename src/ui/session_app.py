@@ -21,10 +21,14 @@ try:
         BUTTON_TEXT,
         CARD_RADIUS,
         COLOR_BG,
+        COLOR_BORDER,
+        COLOR_ERROR,
+        COLOR_SUCCESS,
         COLOR_SURFACE,
         COLOR_TEXT,
         COLOR_TEXT_MUTED,
         FONT_BODY,
+        FONT_H1,
         GUTTER,
         PADDING,
         SECTION_RADIUS,
@@ -37,10 +41,14 @@ except ImportError:
     BUTTON_TEXT = "#FFFFFF"
     CARD_RADIUS = 8
     COLOR_BG = "#1E1E1E"
+    COLOR_BORDER = "#404040"
+    COLOR_ERROR = "#FF4444"
+    COLOR_SUCCESS = "#44FF44"
     COLOR_SURFACE = "#2B2B2B"
     COLOR_TEXT = "#FFFFFF"
     COLOR_TEXT_MUTED = "#888888"
     FONT_BODY = ("Segoe UI", 10)
+    FONT_H1 = ("Segoe UI", 16, "bold")
     GUTTER = 20
     PADDING = 10
     SECTION_RADIUS = 12
@@ -233,35 +241,15 @@ class SessionUI:
         # Initialize collapse state
         self.settings_collapsed = False
 
-        # Create header frame for toggle button
-        self.section_header = ctk.CTkFrame(
+        # Create top row for path input and controls (full width)
+        self.top_row_frame = ctk.CTkFrame(
             self.combined_section,
             fg_color="transparent",
         )
-        self.section_header.pack(fill="x", padx=PADDING, pady=(5, 0))
+        self.top_row_frame.pack(fill="x", padx=PADDING, pady=(15, 10))
 
-        # Create toggle button (standard styling)
-        self.settings_toggle_btn = ctk.CTkButton(
-            self.section_header,
-            text="⚙",  # Settings gear icon
-            width=30,
-            height=30,
-            fg_color=BUTTON_BG,
-            hover_color=BUTTON_HOVER,
-            text_color=BUTTON_TEXT,
-            font=("Segoe UI", 14, "bold"),
-            command=self._toggle_settings,
-        )
-        self.settings_toggle_btn.pack(side="right")
-
-        # Add tooltip-like label
-        self.toggle_label = ctk.CTkLabel(
-            self.section_header,
-            text="Toggle Settings",
-            font=FONT_BODY,
-            text_color=COLOR_TEXT_MUTED,
-        )
-        self.toggle_label.pack(side="right", padx=(0, GUTTER))
+        # Build top row elements
+        self._build_top_row()
 
         # Create a container for the main content area
         self.main_content_container = ctk.CTkFrame(
@@ -272,7 +260,7 @@ class SessionUI:
             fill="both",
             expand=True,
             padx=PADDING,
-            pady=(5, PADDING),
+            pady=(0, PADDING),
         )
 
         # Create content frame (not scrollable - only prompt list will scroll)
@@ -381,6 +369,246 @@ class SessionUI:
 
         # Update the grid layout
         self.section_content.update_idletasks()
+
+    def _build_top_row(self) -> None:
+        """Build the top row with path input and control buttons."""
+        # Initialize config service for path preferences
+        try:
+            from ..config_service import ConfigService
+        except ImportError:
+            from config_service import ConfigService
+        self.config_service = ConfigService()
+
+        # Path entry - expanded to fill available space
+        self.path_entry = ctk.CTkEntry(
+            self.top_row_frame,
+            textvariable=self.prompt_path_var,
+            placeholder_text="Enter path(s) separated by semicolons (;)",
+            border_color=COLOR_BORDER,
+        )
+        self.path_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+        # Bind path change event for real-time validation
+        self.prompt_path_var.trace_add("write", self._on_path_changed)
+
+        # Toggle settings button - 6px gap (leftmost)
+        self.settings_toggle_btn = ctk.CTkButton(
+            self.top_row_frame,
+            text="⚙",  # Settings gear icon
+            width=30,
+            height=30,
+            fg_color=BUTTON_BG,
+            hover_color=BUTTON_HOVER,
+            text_color=BUTTON_TEXT,
+            font=("Segoe UI", 14, "bold"),
+            command=self._toggle_settings,
+        )
+        self.settings_toggle_btn.pack(side="right", padx=(6, 0))
+
+        # Info icon button - 6px gap
+        self.info_btn = ctk.CTkButton(
+            self.top_row_frame,
+            text="ℹ",
+            width=30,
+            height=30,
+            fg_color=BUTTON_BG,
+            hover_color=BUTTON_HOVER,
+            text_color=BUTTON_TEXT,
+            font=("Segoe UI", 14, "bold"),
+            command=self._show_info_dialog,
+        )
+        self.info_btn.pack(side="right", padx=(6, 6))
+
+        # Browse file button - 6px gap
+        self.browse_file_btn = ctk.CTkButton(
+            self.top_row_frame,
+            text="Browse Files",
+            width=80,
+            height=30,
+            fg_color=BUTTON_BG,
+            hover_color=BUTTON_HOVER,
+            text_color=BUTTON_TEXT,
+            font=FONT_BODY,
+            command=self._browse_prompt_file,
+        )
+        self.browse_file_btn.pack(side="right", padx=(6, 6))
+
+    def _on_path_changed(self, *_args) -> None:
+        """Handle path input changes for real-time validation."""
+        path_input = self.prompt_path_var.get().strip()
+
+        # If path is empty, show default border and load default prompts
+        if not path_input:
+            self._update_path_entry_border(COLOR_BORDER)  # Default border color
+            # Load default prompts without setting a path
+            if hasattr(self, "prompt_io"):
+                self.prompt_io._load_default_prompts()
+            return
+
+        # Path has content, validate it (support multiple files)
+        try:
+            # Check if this is a multiple file path (contains semicolon)
+            if ";" in path_input:
+                # Use the multiple file loading method
+                success = self._load_prompts_from_multiple_files(path_input)
+                if success:
+                    self._update_path_entry_border(COLOR_SUCCESS)
+                else:
+                    self._update_path_entry_border(COLOR_ERROR)
+            else:
+                # Single file validation
+                success, result = self.file_service.parse_prompt_list(path_input)
+
+                if success and isinstance(result, list):
+                    self.prompts = result
+                    self.prompt_count = len(result)
+                    self.current_prompt_index = 0
+
+                    # Update inline prompt editor service
+                    if hasattr(self, "prompt_list_service"):
+                        self.prompt_list_service.set_prompts(result)
+
+                    # Update UI with success border color
+                    self._update_path_entry_border(COLOR_SUCCESS)
+                    self._update_preview(result[0] if result else "")
+
+                else:
+                    self._update_path_entry_border(COLOR_ERROR)
+                    self._update_preview("")
+
+        except Exception:
+            self._update_path_entry_border(COLOR_ERROR)
+            self._update_preview("")
+
+    def _show_info_dialog(self) -> None:
+        """Show information dialog about the app and prompt list formats."""
+        # Create dialog window
+        dialog = ctk.CTkToplevel(self.window)
+        dialog.title("Prompt Stacker - Information")
+        dialog.geometry("600x500")
+        dialog.resizable(False, False)
+        dialog.configure(fg_color=COLOR_BG)
+
+        # Make dialog modal
+        dialog.transient(self.window)
+        dialog.grab_set()
+
+        # Center dialog on parent window
+        dialog.update_idletasks()
+        x = self.window.winfo_x() + (self.window.winfo_width() // 2) - (600 // 2)
+        y = self.window.winfo_y() + (self.window.winfo_height() // 2) - (500 // 2)
+        dialog.geometry(f"600x500+{x}+{y}")
+
+        # Main container
+        main_frame = ctk.CTkFrame(
+            dialog,
+            fg_color=COLOR_SURFACE,
+            corner_radius=CARD_RADIUS,
+        )
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Title
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="Prompt Stacker - Automation Tool",
+            font=FONT_H1,
+            text_color=COLOR_TEXT,
+        )
+        title_label.pack(pady=(20, 10))
+
+        # Scrollable text area
+        text_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        text_frame.pack(fill="both", expand=True, padx=20, pady=(10, 20))
+
+        # Create text widget with scrollbar
+        text_widget = ctk.CTkTextbox(
+            text_frame,
+            font=FONT_BODY,
+            text_color=COLOR_TEXT,
+            fg_color="transparent",
+            wrap="word",
+        )
+        text_widget.pack(fill="both", expand=True)
+
+        # Information content
+        info_text = """
+Welcome to Prompt Stacker!
+
+This automation tool helps you automate repetitive text input tasks by
+cycling through a list of prompts and automatically pasting them into
+target applications.
+
+HOW TO USE:
+1. Set up your target coordinates by clicking "Capture" buttons
+2. Configure your timing preferences
+3. Load or create a prompt list file
+4. Click "Start" to begin automation
+
+PROMPT LIST FILE FORMATS:
+
+Python Files (.py):
+• Create a Python file with a list variable
+• Example:
+  prompt_list = [
+      "Your first prompt here",
+      "Your second prompt here",
+      "Your third prompt here"
+  ]
+• Variable name can be anything (prompt_list, prompts, etc.)
+
+Text Files (.txt):
+• One prompt per line
+• Example:
+  First prompt
+  Second prompt
+  Third prompt
+
+CSV Files (.csv):
+• Comma-separated values
+• Example:
+  "First prompt","Second prompt","Third prompt"
+
+CREATING YOUR OWN PROMPT FILES:
+• Use the "Browse Files" button to select one or more existing files
+• Multiple files can be selected and will be combined into one prompt list
+• File paths are separated by semicolons (;) in the input field
+• Create new files in the prompt_lists/ directory
+• The app will automatically load prompt_list.py on startup
+• You can edit prompts directly in the app using the prompt list editor
+
+AUTOMATION CONTROLS:
+• Start/Stop: Begin or end automation
+• Pause/Resume: Temporarily stop automation
+• Next: Immediately start next prompt automation (when running)
+
+TIPS:
+• Test your coordinates before starting automation
+• Use the prompt list editor to modify prompts on the fly
+• Save your coordinate settings for future use
+• The app remembers your last used prompt file
+• Toggle settings panel with the ⚙ button or Ctrl+S for more prompt list space
+        """
+
+        # Insert text
+        text_widget.insert("1.0", info_text)
+        text_widget.configure(state="disabled")  # Make read-only
+
+        # Close button
+        close_btn = ctk.CTkButton(
+            main_frame,
+            text="Close",
+            width=100,
+            height=35,
+            fg_color=BUTTON_BG,
+            hover_color=BUTTON_HOVER,
+            text_color=BUTTON_TEXT,
+            font=FONT_BODY,
+            command=dialog.destroy,
+        )
+        close_btn.pack(pady=(0, 20))
+
+        # Focus on dialog
+        dialog.focus_set()
 
     def _load_timer_preferences(self) -> None:
         """Load timer preferences from config service."""

@@ -79,7 +79,7 @@ class ControlBuilder(BaseUIBuilder):
             fg_color=COLOR_SURFACE,
             corner_radius=SECTION_RADIUS,
         )
-        self.ui.control_frame.pack(fill="x", padx=PADDING, pady=(GUTTER // 2, GUTTER))
+        self.ui.control_frame.pack(fill="x", padx=0, pady=(10, GUTTER))
 
         # Control buttons frame
         buttons_frame = ctk.CTkFrame(self.ui.control_frame, fg_color="transparent")

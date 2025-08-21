@@ -62,8 +62,8 @@ class ContentBuilder(BaseUIBuilder):
         self.ui.content_frame.pack(
             fill="both",
             expand=True,
-            padx=PADDING,
-            pady=(GUTTER // 2, PADDING),
+            padx=0,
+            pady=(10, PADDING),
         )
 
         # Content grid

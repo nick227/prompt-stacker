@@ -44,7 +44,7 @@ class PromptListBuilder(BaseUIBuilder):
             row=0,
             column=0,
             sticky="nsew",
-            padx=(5, PADDING),
+            padx=(0, PADDING),
             pady=(0, PADDING),
         )
 
