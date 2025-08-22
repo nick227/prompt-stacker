@@ -337,6 +337,50 @@ class AutomationController:
                        len(self._context.prompts))
             return (0, 0)
 
+    def update_prompts(self, new_prompts: List[str]) -> None:
+        """
+        Update the automation context with new prompts.
+        
+        This method should be called when prompts are modified in the UI
+        to ensure the automation controller uses the updated prompt data.
+        
+        Args:
+            new_prompts: Updated list of prompts
+        """
+        with self._state_lock:
+            if self._context:
+                # Update prompts in context
+                self._context.prompts = new_prompts.copy()
+
+                # Ensure current index is valid
+                if self._context.current_prompt_index >= len(new_prompts):
+                    self._context.current_prompt_index = max(0, len(new_prompts) - 1)
+
+                logger.info(f"Updated automation context with {len(new_prompts)} prompts")
+
+                # Update configuration snapshot
+                if self._last_config_snapshot:
+                    self._last_config_snapshot["prompts_count"] = len(new_prompts)
+
+    def update_current_prompt_index(self, new_index: int) -> None:
+        """
+        Update the current prompt index in the automation context.
+        
+        This method should be called when the current prompt index changes
+        due to reordering or manual selection.
+        
+        Args:
+            new_index: New current prompt index
+        """
+        with self._state_lock:
+            if self._context:
+                # Ensure index is valid
+                if 0 <= new_index < len(self._context.prompts):
+                    self._context.current_prompt_index = new_index
+                    logger.info(f"Updated automation context current index to {new_index}")
+                else:
+                    logger.warning(f"Invalid prompt index {new_index}, max is {len(self._context.prompts) - 1}")
+
     # =============================================================================
     # PUBLIC API - EVENT CALLBACKS
     # =============================================================================
@@ -453,19 +497,19 @@ class AutomationController:
 
             # Automation completed successfully
             self._set_state(AutomationState.COMPLETED)
-            
+
             # Update Next button state (disabled when completed)
             self._update_next_button_state()
-            
+
             logger.info("=== AUTOMATION COMPLETED SUCCESSFULLY ===")
 
         except Exception as e:
             logger.error(f"Automation failed with error: {e}")
             self._set_state(AutomationState.FAILED)
-            
+
             # Update Next button state (disabled when failed)
             self._update_next_button_state()
-            
+
             self._notify_error_callbacks(str(e))
 
         finally:

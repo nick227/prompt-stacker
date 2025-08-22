@@ -10,6 +10,7 @@ Version: 3.0 - Centralized Integration
 """
 
 import logging
+from typing import List
 
 try:
     from .automation_controller import AutomationController, AutomationState
@@ -178,6 +179,24 @@ class AutomationIntegration:
         """
         return self.controller.get_progress()
 
+    def update_prompts(self, new_prompts: List[str]) -> None:
+        """
+        Update the automation context with new prompts.
+        
+        Args:
+            new_prompts: Updated list of prompts
+        """
+        self.controller.update_prompts(new_prompts)
+
+    def update_current_prompt_index(self, new_index: int) -> None:
+        """
+        Update the current prompt index in the automation context.
+        
+        Args:
+            new_index: New current prompt index
+        """
+        self.controller.update_current_prompt_index(new_index)
+
     def _update_textareas_for_current_prompt(self):
         """
         Update the UI textareas to reflect the current prompt.
@@ -257,12 +276,17 @@ class SessionController:
         """Advance to next prompt - delegated to integration layer."""
         return self.controller.next_prompt()
 
-    def cancel_automation(self) -> bool:
-        """Cancel automation and close dialog - delegated to integration layer."""
-        # Stop automation first
-        result = self.controller.stop_automation()
+    def update_prompts(self, new_prompts: List[str]) -> None:
+        """Update prompts in automation context - delegated to integration layer."""
+        self.controller.update_prompts(new_prompts)
 
-        # Close the UI dialog
+    def update_current_prompt_index(self, new_index: int) -> None:
+        """Update current prompt index in automation context - delegated to integration layer."""
+        self.controller.update_current_prompt_index(new_index)
+
+    def cancel_automation(self) -> bool:
+        """Cancel automation and close dialog - optimized for fast closing."""
+        # Close the UI dialog IMMEDIATELY for better UX
         try:
             if hasattr(self.ui, "close"):
                 self.ui.close()
@@ -270,11 +294,27 @@ class SessionController:
                 self.ui.destroy()
             elif hasattr(self.ui, "quit"):
                 self.ui.quit()
-            logger.info("UI dialog closed")
+            logger.info("UI dialog closed immediately")
         except Exception as e:
             logger.error(f"Error closing UI dialog: {e}")
 
-        return result
+        # Stop automation in background (non-blocking)
+        try:
+            # Use a separate thread to avoid blocking the UI close
+            import threading
+            def stop_in_background():
+                try:
+                    self.controller.stop_automation()
+                    logger.info("Automation stopped in background")
+                except Exception as e:
+                    logger.error(f"Error stopping automation in background: {e}")
+
+            background_thread = threading.Thread(target=stop_in_background, daemon=True)
+            background_thread.start()
+        except Exception as e:
+            logger.error(f"Error starting background stop: {e}")
+
+        return True
 
     def toggle_pause(self) -> bool:
         """Toggle pause state - delegated to integration layer."""

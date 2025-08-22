@@ -98,7 +98,7 @@ class CountdownService:
         # Callback for countdown completion
         self.on_countdown_complete: Optional[Callable[[Dict[str, Any]], None]] = None
 
-        # CRITICAL FIX: Add callback for UI state updates when pause state changes
+        # Add callback for UI state updates when pause state changes
         self.on_pause_state_changed: Optional[Callable[[bool], None]] = None
 
     @property
@@ -160,7 +160,7 @@ class CountdownService:
         """
         logger.info(f"Starting countdown for {seconds} seconds")
 
-        # CRITICAL FIX: Preserve pause state when transitioning between countdowns
+        # Preserve pause state when transitioning between countdowns
         was_paused = self._paused
 
         # Stop any existing countdown
@@ -199,8 +199,7 @@ class CountdownService:
         with self._lock:
             self._active = False
             self._cancelled = True
-            # CRITICAL FIX: Don't clear pause state when stopping - preserve it
-            # for transitions
+            # Don't clear pause state when stopping - preserve it for transitions
 
         self._completion_event.set()
 
@@ -235,7 +234,7 @@ class CountdownService:
         except (AttributeError, tkinter.TclError) as e:
             logger.error(f"Error updating pause button: {e}")
 
-        # CRITICAL FIX: Trigger UI state update callback when pause state changes
+        # Trigger UI state update callback when pause state changes
         if self.on_pause_state_changed:
             try:
                 self.on_pause_state_changed(self._paused)
@@ -412,7 +411,7 @@ class CountdownService:
                 and self.countdown_active
                 and not self.cancelled
             ):
-                # Handle pause state - CRITICAL FIX: Don't decrement time when paused
+                # Handle pause state - Don't decrement time when paused
                 if self.paused:
                     # Track pause start time
                     if pause_start_time is None:
@@ -437,7 +436,7 @@ class CountdownService:
                 # Update display
                 self._schedule_ui_update(remaining, total, text, next_text)
 
-                # CRITICAL FIX: Proper pause/resume logic - always wait full second
+                # Proper pause/resume logic - always wait full second
                 time.sleep(1.0)
                 remaining -= 1.0
 

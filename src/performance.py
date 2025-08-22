@@ -136,7 +136,7 @@ class PerformanceMonitor:
         cpu_count = psutil.cpu_count()
 
         # System metrics
-        # system_memory = psutil.virtual_memory()  # Unused variable
+        # Removed unused variable
 
         return PerformanceMetrics(
             memory_usage_mb=memory_usage_mb,

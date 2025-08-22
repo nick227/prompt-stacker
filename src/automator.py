@@ -207,7 +207,7 @@ def click_button_or_fallback(
 
     def button_operation():
         try:
-            # CRITICAL FIX: Add timeout protection for window connection
+            # Add timeout protection for window connection
             if win.window is None:
                 logger.info("Window is None, attempting to connect...")
                 try:
@@ -227,7 +227,7 @@ def click_button_or_fallback(
                              f"coordinate click")
                 return click_with_timeout(coords)
 
-            # CRITICAL FIX: Add timeout protection for button existence check
+            # Add timeout protection for button existence check
             try:
                 if btn.exists():
                     logger.info(f"Found button '{btn.window_text()}' - "
@@ -258,7 +258,7 @@ def click_button_or_fallback(
         logger.info("Falling back to coordinate-based click")
         return click_with_timeout(coords)
 
-    # CRITICAL FIX: Increase timeout for button operations that might hang
+    # Increase timeout for button operations that might hang
     result = run_with_timeout(button_operation, CLICK_TIMEOUT * 2)  # Double the timeout
     logger.info(f"Button click operation result: {result}")
     return result or False
@@ -322,61 +322,8 @@ def sanitize_text_for_logging(text: str) -> str:
     return text
 
 
-def run_single_prompt_automation(ui: SessionUI, prompt_index: int) -> bool:
-    """
-    DEPRECATED: This function has been replaced by the centralized
-    AutomationController.
-
-    This function is kept for backward compatibility but should not be used.
-    The new AutomationController provides better reliability and maintainability.
-
-    Args:
-        ui: UI session instance
-        prompt_index: Index of prompt to process
-
-    Returns:
-        True if automation completed successfully, False otherwise
-    """
-    logger.warning("DEPRECATED: run_single_prompt_automation() is deprecated. "
-                  "Use AutomationController instead.")
-
-    # Import the new controller
-    try:
-        from .automation_controller import AutomationController
-        controller = AutomationController(ui)
-        # Set the current prompt index and start automation
-        controller._context.current_prompt_index = prompt_index
-        return controller.start_automation()
-    except ImportError:
-        logger.error("AutomationController not available - automation failed")
-        return False
-
-
-def run_automation_with_ui(ui) -> bool:
-    """
-    DEPRECATED: This function has been replaced by the centralized
-    AutomationController.
-
-    This function is kept for backward compatibility but should not be used.
-    The new AutomationController provides better reliability and maintainability.
-
-    Args:
-        ui: UI session instance
-
-    Returns:
-        True if automation completed successfully, False otherwise
-    """
-    logger.warning("DEPRECATED: run_automation_with_ui() is deprecated. "
-                  "Use AutomationController instead.")
-
-    # Import the new controller
-    try:
-        from .automation_controller import AutomationController
-        controller = AutomationController(ui)
-        return controller.start_automation()
-    except ImportError:
-        logger.error("AutomationController not available - automation failed")
-        return False
+# DEPRECATED FUNCTIONS REMOVED
+# Use AutomationController instead for better reliability and maintainability
 
 
 def run_automation(prompts: List[str]) -> bool:
@@ -396,9 +343,10 @@ def run_automation(prompts: List[str]) -> bool:
         return False
 
     try:
-        # Run automation with the existing UI
-        result = run_automation_with_ui(ui)
-        return result
+        # Run automation with the new AutomationController
+        from .automation_controller import AutomationController
+        controller = AutomationController(ui)
+        return controller.start_automation()
     finally:
         # Cleanup resources
         ui.close()

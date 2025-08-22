@@ -334,6 +334,10 @@ class PromptIO:
         self.ui.prompts = prompts
         self.ui.prompt_count = len(prompts)
 
+        # Update automation controller context with new prompts
+        if hasattr(self.ui, "session_controller"):
+            self.ui.session_controller.update_prompts(prompts)
+
         # Check if prompts have been modified
         self.check_prompts_modified()
 

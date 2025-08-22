@@ -122,6 +122,9 @@ class InlinePromptEditorService:
         # Build UI
         self._build_prompt_list_ui()
 
+        # Ensure current index is valid
+        self._ensure_valid_current_index()
+
     def _build_prompt_list_ui(self) -> None:
         """Build the prompt list UI components."""
         # Create toolbar frame
@@ -178,18 +181,14 @@ class InlinePromptEditorService:
         self.prompts.extend(prompts)  # Add prompts to pooled list
         self.prompt_count = len(prompts)
 
-        # Preserve current prompt index if it's still valid, otherwise reset to 0
-        if self.current_prompt_index >= len(prompts):
-            self.current_prompt_index = 0
-
-        # Clear existing rows
+        # Clear and rebuild
         self._clear_prompt_list()
-
-        # Build new prompt rows
         if prompts:
             self._build_dynamic_prompt_list()
 
-        # Update count label
+        # Ensure current index is valid and update
+        self._ensure_valid_current_index()
+        self._update_all_highlighting()
         self._update_count_label()
 
     def _add_new_prompt(self) -> None:
@@ -418,6 +417,10 @@ class InlinePromptEditorService:
         if index < len(self.prompts):
             self.prompts[index] = new_text
 
+        # If this is the current prompt being edited, update Next Prompt textarea immediately
+        if index == self.current_prompt_index:
+            self.refresh_next_prompt_display()
+
         # Throttle the callback to avoid too many updates
         self._throttle_prompt_update()
 
@@ -511,8 +514,10 @@ class InlinePromptEditorService:
         if index not in self.prompt_rows:
             return
 
+        # Remove editing highlight - input field focus is sufficient indication
+        # This prevents confusion with the current prompt green background
         row = self.prompt_rows[index]
-        row.configure(fg_color=COLOR_ACCENT)
+        row.configure(fg_color=COLOR_SURFACE)
 
         # Update text colors
         if index in self.prompt_labels:
@@ -522,49 +527,44 @@ class InlinePromptEditorService:
 
     def _apply_row_highlighting(self, index: int) -> None:
         """
-        Apply appropriate highlighting to a prompt row.
-
-        Args:
-            index: Prompt index
+        Apply highlighting to a prompt row - SIMPLIFIED VERSION.
+        
+        Only two states: current or not current. Editing uses focus instead of color.
         """
         if index not in self.prompt_rows:
             return
 
         row = self.prompt_rows[index]
+        is_current = (index == self.current_prompt_index)
 
-        # Determine the state based on automation status and current index
-        is_current_item = (index == self.current_prompt_index)
-
-        # Apply colors based on state
-        if self.is_automation_running and is_current_item:
-            # Current item during automation - highlight it
-            bg_color, text_color = "#2B2B2B", "#FFFFFF"  # Dark gray background, white text
+        # Simple: current gets highlight, others get normal
+        if is_current:
+            row.configure(fg_color=COLOR_ACCENT)
         else:
-            # Normal state - all items have transparent/normal styling
-            bg_color, text_color = "transparent", "#CCCCCC"  # Transparent background, light gray text
-
-        # Apply the colors
-        row.configure(fg_color=bg_color)
-
-        # Update text colors for labels and entries
-        if index in self.prompt_labels:
-            self.prompt_labels[index].configure(text_color=text_color)
-        if index in self.prompt_entries:
-            self.prompt_entries[index].configure(text_color=text_color)
+            row.configure(fg_color=COLOR_SURFACE)
 
     def set_current_prompt_index(self, index: int) -> None:
         """
-        Set the current prompt index and update UI accordingly.
-
-        Args:
-            index: New current prompt index
+        Set the current prompt index - SIMPLIFIED VERSION.
         """
-        if 0 <= index < len(self.prompts):
-            self.current_prompt_index = index
-            self._update_prompt_list_ui()
+        # Simple bounds checking
+        if len(self.prompts) == 0:
+            self.current_prompt_index = 0
+        else:
+            self.current_prompt_index = max(0, min(index, len(self.prompts) - 1))
 
-            # CRITICAL FIX: Refresh next prompt display when current index changes
-            self.refresh_next_prompt_display()
+        # Update automation controller context with new index
+        if hasattr(self, "ui") and hasattr(self.ui, "session_controller"):
+            self.ui.session_controller.update_current_prompt_index(self.current_prompt_index)
+
+        # Update highlighting
+        self._update_all_highlighting()
+        self.refresh_next_prompt_display()
+
+    def _ensure_valid_current_index(self) -> None:
+        """Simple bounds checking for current index."""
+        if len(self.prompts) > 0:
+            self.current_prompt_index = max(0, min(self.current_prompt_index, len(self.prompts) - 1))
 
     def set_automation_running(self, running: bool) -> None:
         """
@@ -604,8 +604,6 @@ class InlinePromptEditorService:
 
         self.prompts.insert(index, prompt)
         self.prompt_count = len(self.prompts)
-
-        # Use consistent rebuild approach for all operations
         self._rebuild_prompt_list_ui()
 
         # Update count label
@@ -676,12 +674,6 @@ class InlinePromptEditorService:
             # Remove from data
             self.prompts.pop(index)
             self.prompt_count = len(self.prompts)
-
-            # Adjust current index if needed
-            if self.current_prompt_index >= self.prompt_count:
-                self.current_prompt_index = max(0, self.prompt_count - 1)
-
-            # Rebuild the entire UI to ensure consistency
             self._rebuild_prompt_list_ui()
 
             # Update count label
@@ -693,8 +685,7 @@ class InlinePromptEditorService:
                     self.prompts,
                 )  # Direct reference - no copy needed
 
-            # CRITICAL FIX: Refresh next prompt display when a prompt is deleted
-            # This ensures the "Next:" textarea shows the correct next prompt
+            # Refresh next prompt display when a prompt is deleted
             self.refresh_next_prompt_display()
 
         except Exception as e:
@@ -720,7 +711,7 @@ class InlinePromptEditorService:
         if self.on_prompts_changed:
             self.on_prompts_changed(self.prompts)  # Direct reference - no copy needed
 
-        # CRITICAL FIX: Refresh next prompt display when prompts are cleared
+        # Refresh next prompt display when prompts are cleared
         self.refresh_next_prompt_display()
 
     def sort_prompts(self, reverse: bool = False) -> None:
@@ -762,7 +753,7 @@ class InlinePromptEditorService:
                 self.prompts,
             )  # Direct reference - no copy needed
 
-        # CRITICAL FIX: Refresh next prompt display when prompts are sorted
+        # Refresh next prompt display when prompts are sorted
         self.refresh_next_prompt_display()
 
     def _update_prompt_list_ui(self) -> None:
@@ -792,29 +783,19 @@ class InlinePromptEditorService:
 
     def _rebuild_prompt_list_ui(self) -> None:
         """
-        Rebuild the entire prompt list UI to ensure data and UI consistency.
-        This is more reliable than trying to manually shift indices.
+        Rebuild the prompt list UI - SIMPLIFIED VERSION.
         """
         try:
-            # Clear existing UI elements
+            # Clear and rebuild
             self._clear_prompt_list()
-
-            # Rebuild all rows
             for index, prompt in enumerate(self.prompts):
                 self._create_prompt_row(index, prompt)
 
-            # Update highlighting
+            # Ensure current index is valid and update highlighting
+            self._ensure_valid_current_index()
             self._update_all_highlighting()
         except Exception as e:
             print(f"Error during UI rebuild: {e}")
-            # Fallback: try to clear and rebuild again
-            try:
-                self._clear_prompt_list()
-                for index, prompt in enumerate(self.prompts):
-                    self._create_prompt_row(index, prompt)
-                self._update_all_highlighting()
-            except Exception as e2:
-                print(f"Critical error during UI rebuild fallback: {e2}")
 
     def move_prompt_up(self, index: int) -> None:
         """
@@ -836,6 +817,11 @@ class InlinePromptEditorService:
             elif self.current_prompt_index == index - 1:
                 self.current_prompt_index = index
 
+            # Update automation controller context with new prompts and index
+            if hasattr(self, "ui") and hasattr(self.ui, "session_controller"):
+                self.ui.session_controller.update_prompts(self.prompts)
+                self.ui.session_controller.update_current_prompt_index(self.current_prompt_index)
+
             # Use consistent rebuild approach
             self._rebuild_prompt_list_ui()
 
@@ -848,7 +834,7 @@ class InlinePromptEditorService:
                     self.prompts,
                 )  # Direct reference - no copy needed
 
-            # CRITICAL FIX: Refresh next prompt display when a prompt is moved
+            # Refresh next prompt display when a prompt is moved
             self.refresh_next_prompt_display()
 
     def move_prompt_down(self, index: int) -> None:
@@ -871,6 +857,11 @@ class InlinePromptEditorService:
             elif self.current_prompt_index == index + 1:
                 self.current_prompt_index = index
 
+            # Update automation controller context with new prompts and index
+            if hasattr(self, "ui") and hasattr(self.ui, "session_controller"):
+                self.ui.session_controller.update_prompts(self.prompts)
+                self.ui.session_controller.update_current_prompt_index(self.current_prompt_index)
+
             # Use consistent rebuild approach
             self._rebuild_prompt_list_ui()
 
@@ -883,7 +874,7 @@ class InlinePromptEditorService:
                     self.prompts,
                 )  # Direct reference - no copy needed
 
-            # CRITICAL FIX: Refresh next prompt display when a prompt is moved
+            # Refresh next prompt display when a prompt is moved
             self.refresh_next_prompt_display()
 
     def _save_new_prompt(self, index: int) -> None:
@@ -915,7 +906,7 @@ class InlinePromptEditorService:
                         self.prompts,
                     )  # Direct reference - no copy needed
 
-                # CRITICAL FIX: Refresh next prompt display when a new prompt is saved
+                # Refresh next prompt display when a new prompt is saved
                 self.refresh_next_prompt_display()
 
     def destroy(self) -> None:

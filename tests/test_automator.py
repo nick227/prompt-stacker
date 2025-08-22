@@ -10,13 +10,13 @@ import pytest
 
 # Import with fallback for relative import issues
 try:
-    from src.automator import run_automation, run_automation_with_ui
+    from src.automator import run_automation
 except ImportError:
     # Fallback for when running tests directly
     import os
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-    from automator import run_automation, run_automation_with_ui
+    from automator import run_automation
 
 # Import test utilities
 from .test_utils import AutomationTestMixin, create_mock_ui_session
@@ -149,113 +149,12 @@ class TestAutomator(AutomationTestMixin):
         assert result is True
         mock_pyautogui.click.assert_called_once_with(100, 200)
 
-    @pytest.mark.unit
-    def test_run_automation_with_ui_success(self, mock_ui, mock_pyautogui, mock_pyperclip, mock_time, mock_dpi, mock_cursor_window):
-        """Test successful automation run with AutomationController."""
-        with patch("src.automation_controller.AutomationController") as mock_controller_class:
-            mock_controller = Mock()
-            mock_controller.start_automation.return_value = True
-            mock_controller_class.return_value = mock_controller
-
-            result = run_automation_with_ui(mock_ui)
-            self.assert_automation_success(result, mock_controller_class, mock_controller)
-
-    @pytest.mark.unit
-    def test_run_automation_with_ui_cancelled(self, mock_ui, mock_pyautogui, mock_pyperclip, mock_time, mock_dpi, mock_cursor_window):
-        """Test automation run when cancelled."""
-        # Mock AutomationController to return cancelled state
-        with patch("src.automation_controller.AutomationController") as mock_controller_class:
-            mock_controller = Mock()
-            mock_controller.start_automation.return_value = False
-            mock_controller_class.return_value = mock_controller
-
-            result = run_automation_with_ui(mock_ui)
-
-            assert result is False
-            mock_controller.start_automation.assert_called_once()
-
-
-
-    @pytest.mark.unit
-    def test_run_automation_with_ui_no_prompts(self, mock_ui, mock_pyautogui, mock_pyperclip, mock_time, mock_dpi, mock_cursor_window):
-        """Test automation run with no prompts."""
-        # Mock AutomationController to simulate no prompts validation failure
-        with patch("src.automation_controller.AutomationController") as mock_controller_class:
-            mock_controller = Mock()
-            mock_controller.start_automation.return_value = False
-            mock_controller_class.return_value = mock_controller
-
-            result = run_automation_with_ui(mock_ui)
-
-            assert result is False
-
-    @pytest.mark.unit
-    def test_run_automation_with_ui_missing_coordinates(self, mock_ui, mock_pyautogui, mock_pyperclip, mock_time, mock_dpi, mock_cursor_window):
-        """Test automation run with missing coordinates."""
-        # Mock AutomationController to simulate coordinate validation failure
-        with patch("src.automation_controller.AutomationController") as mock_controller_class:
-            mock_controller = Mock()
-            mock_controller.start_automation.return_value = False
-            mock_controller_class.return_value = mock_controller
-
-            result = run_automation_with_ui(mock_ui)
-
-            assert result is False
-
-    @pytest.mark.unit
-    def test_run_automation_with_ui_paste_failure(self, mock_ui, mock_pyautogui, mock_pyperclip, mock_time, mock_dpi, mock_cursor_window):
-        """Test automation run when text pasting fails."""
-        # Mock AutomationController to simulate paste operation failure
-        with patch("src.automation_controller.AutomationController") as mock_controller_class:
-            mock_controller = Mock()
-            mock_controller.start_automation.return_value = False
-            mock_controller_class.return_value = mock_controller
-
-            result = run_automation_with_ui(mock_ui)
-
-            assert result is False  # Should fail when paste fails
-
-    @pytest.mark.unit
-    def test_run_automation_with_ui_click_failure(self, mock_ui, mock_pyautogui, mock_pyperclip, mock_time, mock_dpi, mock_cursor_window):
-        """Test automation run when button clicking fails."""
-        # Mock AutomationController to simulate click operation failure
-        with patch("src.automation_controller.AutomationController") as mock_controller_class:
-            mock_controller = Mock()
-            mock_controller.start_automation.return_value = False
-            mock_controller_class.return_value = mock_controller
-
-            result = run_automation_with_ui(mock_ui)
-
-            assert result is False  # Should fail when click fails
-
-    @pytest.mark.unit
-    def test_run_automation_with_ui_end_of_prompts(self, mock_ui, mock_pyautogui, mock_pyperclip, mock_time, mock_dpi, mock_cursor_window):
-        """Test automation run reaching end of prompts."""
-        # Mock AutomationController to simulate successful completion
-        with patch("src.automation_controller.AutomationController") as mock_controller_class:
-            mock_controller = Mock()
-            mock_controller.start_automation.return_value = True
-            mock_controller_class.return_value = mock_controller
-
-            result = run_automation_with_ui(mock_ui)
-
-            assert result is True
-
-    @pytest.mark.unit
-    def test_run_automation_validation(self, mock_ui, mock_dpi, mock_cursor_window):
-        """Test automation input validation."""
-        # Test with None UI - should fail immediately in deprecated function
-        result = run_automation_with_ui(None)
-        assert result is False
+    # DEPRECATED FUNCTION TESTS REMOVED
+    # These tests were for run_automation_with_ui which has been removed
+    # Use AutomationController tests instead
 
         # Test with UI that has no prompts - AutomationController should handle validation
-        with patch("src.automation_controller.AutomationController") as mock_controller_class:
-            mock_controller = Mock()
-            mock_controller.start_automation.return_value = False  # Validation failure
-            mock_controller_class.return_value = mock_controller
-
-            result = run_automation_with_ui(mock_ui)
-            assert result is False
+        # This test has been removed since run_automation_with_ui is deprecated
 
     @pytest.mark.unit
     def test_thread_safety_features(self, mock_ui):
@@ -282,11 +181,15 @@ class TestAutomator(AutomationTestMixin):
             mock_ui.wait_for_start.return_value = True
             mock_ui._started = True
 
-            with patch("src.automator.run_automation_with_ui", return_value=True) as mock_run:
+            with patch("src.automation_controller.AutomationController") as mock_controller_class:
+                mock_controller = Mock()
+                mock_controller.start_automation.return_value = True
+                mock_controller_class.return_value = mock_controller
+
                 result = run_automation([])
 
                 assert result is True
-                mock_run.assert_called_once_with(mock_ui)
+                mock_controller.start_automation.assert_called_once()
 
     @pytest.mark.unit
     def test_run_automation_main_function_no_start(self):
@@ -312,11 +215,12 @@ class TestAutomator(AutomationTestMixin):
             mock_ui.wait_for_start.return_value = True
             mock_ui._started = True
 
-            with patch("src.automator.run_automation_with_ui", return_value=True) as mock_run:
+            with patch("src.automation_controller.AutomationController") as mock_controller_class:
+                mock_controller = Mock()
+                mock_controller.start_automation.return_value = True
+                mock_controller_class.return_value = mock_controller
+
                 result = run_automation(test_prompts)
 
                 assert result is True
-                # Should set prompts on UI
-                mock_ui_class.assert_called_once()
-                # The prompts should be passed to the SessionUI constructor
-                # but we can't easily check that with the current mock setup
+                mock_controller.start_automation.assert_called_once()

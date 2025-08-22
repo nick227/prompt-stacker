@@ -319,7 +319,7 @@ class SessionUI:
                 on_prompts_changed=self._on_prompts_changed,
             )
 
-            # CRITICAL FIX: Pass next_box reference to prompt list service
+            # Pass next_box reference to prompt list service
             # This allows the service to update the "Next:" textarea when
             # prompts are modified
             if hasattr(self, "next_box") and self.next_box:
@@ -335,7 +335,7 @@ class SessionUI:
         # Load initial prompt list
         self.prompt_io.validate_prompt_list()
 
-        # CRITICAL FIX: Start periodic UI health check to detect stuck states
+        # Start periodic UI health check to detect stuck states
         self.state_manager.start_ui_health_check()
 
     def _toggle_settings(self) -> None:
@@ -806,40 +806,43 @@ TIPS:
         self.window_service.bring_to_front()
 
     def close(self) -> None:
-        """Close the application."""
-        # Save prompts if modified
-        self._save_prompts_on_exit()
-
-        # Stop services in proper order
-        try:
-            if hasattr(self, "event_service"):
-                self.event_service.stop()
-        except Exception as e:
-            print(f"Error stopping event service: {e}")
-
-        try:
-            if hasattr(self, "coordinate_service"):
-                self.coordinate_service.stop_capture()
-        except Exception as e:
-            print(f"Error stopping coordinate service: {e}")
-
-        try:
-            if hasattr(self, "countdown_service"):
-                self.countdown_service.stop()
-        except Exception as e:
-            print(f"Error stopping countdown service: {e}")
-
-        # Cleanup memory pools
-        try:
-            cleanup_memory_pools()
-        except Exception:
-            pass  # Ignore cleanup errors
-
-        # Close window
+        """Close the application - optimized for fast closing."""
+        # Close window IMMEDIATELY for better UX
         try:
             self.window_service.close()
         except Exception as e:
             print(f"Error closing window: {e}")
+
+        # Handle cleanup in background (non-blocking)
+        try:
+            import threading
+            def cleanup_in_background():
+                try:
+                    # Save prompts if modified
+                    self._save_prompts_on_exit()
+
+                    # Stop services in proper order
+                    if hasattr(self, "event_service"):
+                        self.event_service.stop()
+                    if hasattr(self, "coordinate_service"):
+                        self.coordinate_service.stop_capture()
+                    if hasattr(self, "countdown_service"):
+                        self.countdown_service.stop()
+
+                    # Cleanup memory pools
+                    try:
+                        cleanup_memory_pools()
+                    except Exception:
+                        pass  # Ignore cleanup errors
+
+                    print("Background cleanup completed")
+                except Exception as e:
+                    print(f"Error in background cleanup: {e}")
+
+            background_thread = threading.Thread(target=cleanup_in_background, daemon=True)
+            background_thread.start()
+        except Exception as e:
+            print(f"Error starting background cleanup: {e}")
 
     def _save_prompts_on_exit(self) -> None:
         """Save prompts if they have been modified."""
@@ -981,25 +984,27 @@ TIPS:
         self.prompt_io._update_path_entry_border(color)
 
     # --- Backward-compatibility forwarders for tests & builders ---
+    # These methods are kept for test compatibility but should be migrated
+    # to use the prompt_io service directly in future updates
+
     def _update_preview(self, text: str) -> None:
-        """Backward-compatibility: forward to prompt_io._update_preview."""
+        """Forward to prompt_io._update_preview."""
         self.prompt_io._update_preview(text)
 
     def _load_prompts_from_multiple_files(self, path_input: str) -> bool:
-        """Backward-compatibility: forward to
-        prompt_io._load_prompts_from_multiple_files."""
+        """Forward to prompt_io._load_prompts_from_multiple_files."""
         return self.prompt_io._load_prompts_from_multiple_files(path_input)
 
     def _load_prompts_from_file(self, file_path: str) -> bool:
-        """Backward-compatibility: forward to prompt_io._load_prompts_from_file."""
+        """Forward to prompt_io._load_prompts_from_file."""
         return self.prompt_io._load_prompts_from_file(file_path)
 
     @property
     def _current_file_path(self) -> str:
-        """Backward-compatibility: expose current file path."""
+        """Expose current file path."""
         return self.prompt_io.get_current_file_path()
 
     @property
     def _prompts_modified(self) -> bool:
-        """Backward-compatibility: expose prompts modified state."""
+        """Expose prompts modified state."""
         return self.prompt_io.is_prompts_modified()

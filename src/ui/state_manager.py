@@ -15,13 +15,13 @@ try:
     from ..config import (
         BTN_START,
         BTN_STOP,
+        BUTTON_BG,
+        BUTTON_HOVER,
         BUTTON_START_ACTIVE,
         BUTTON_START_ACTIVE_HOVER,
         BUTTON_START_INACTIVE,
         BUTTON_STOP_ACTIVE,
         BUTTON_STOP_ACTIVE_HOVER,
-        BUTTON_BG,
-        BUTTON_HOVER,
     )
 except ImportError:
     try:
@@ -338,9 +338,9 @@ class UIStateManager:
                 return
 
             # Check if automation is running
-            if (hasattr(self.ui, "session_controller") and 
+            if (hasattr(self.ui, "session_controller") and
                 self.ui.session_controller.is_started()):
-                
+
                 # Enable Next button during automation (temporary disable handled by timer)
                 self.ui.next_btn.configure(
                     state="normal",
@@ -372,7 +372,7 @@ class UIStateManager:
 
             # Re-enable after 2 seconds if automation is still running
             def re_enable_next_button():
-                if (hasattr(self.ui, "session_controller") and 
+                if (hasattr(self.ui, "session_controller") and
                     self.ui.session_controller.is_started()):
                     self.ui.next_btn.configure(
                         state="normal",
